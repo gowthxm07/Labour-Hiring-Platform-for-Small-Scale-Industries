@@ -12,35 +12,40 @@ export default function RoleSelection() {
     setLoading(true);
     try {
       await createUserProfile(currentUser.uid, currentUser.phoneNumber, role);
-      // Redirect based on role
       if (role === "worker") navigate("/worker-dashboard");
       else navigate("/owner-dashboard");
     } catch (error) {
-      console.error("Error creating profile:", error);
+      console.error(error);
     }
     setLoading(false);
   };
 
   return (
-    <div style={{ textAlign: "center", marginTop: "50px" }}>
-      <h2>Select Your Role</h2>
-      <p>Are you looking for a job or looking to hire?</p>
-
-      <div style={{ display: "flex", justifyContent: "center", gap: "20px", marginTop: "20px" }}>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+      <h2 className="mb-2 text-3xl font-bold text-gray-800">Select Your Role</h2>
+      <p className="mb-8 text-gray-600">Are you looking for a job or looking to hire?</p>
+      
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Worker Card */}
         <button 
           onClick={() => handleRoleSelect("worker")}
           disabled={loading}
-          style={{ padding: "20px", fontSize: "18px", cursor: "pointer" }}
+          className="p-8 transition bg-white border-2 border-transparent rounded-xl shadow-lg hover:border-blue-500 hover:shadow-xl w-64 text-center"
         >
-          I am a Worker <br/> (Looking for Job)
+          <div className="text-4xl mb-4">👷</div>
+          <h3 className="text-xl font-bold text-gray-800">I am a Worker</h3>
+          <p className="text-sm text-gray-500 mt-2">Looking for jobs in factories or mills.</p>
         </button>
 
+        {/* Owner Card */}
         <button 
           onClick={() => handleRoleSelect("owner")}
           disabled={loading}
-          style={{ padding: "20px", fontSize: "18px", cursor: "pointer" }}
+          className="p-8 transition bg-white border-2 border-transparent rounded-xl shadow-lg hover:border-blue-500 hover:shadow-xl w-64 text-center"
         >
-          I am an Owner <br/> (Hiring Workers)
+          <div className="text-4xl mb-4">🏭</div>
+          <h3 className="text-xl font-bold text-gray-800">I am an Owner</h3>
+          <p className="text-sm text-gray-500 mt-2">Hiring workers for my unit.</p>
         </button>
       </div>
     </div>

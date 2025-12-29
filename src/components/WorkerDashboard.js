@@ -8,7 +8,6 @@ export default function WorkerDashboard() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Function to fetch profile
   const fetchProfile = async () => {
     if (currentUser) {
       const data = await getWorkerProfile(currentUser.uid);
@@ -21,38 +20,50 @@ export default function WorkerDashboard() {
     fetchProfile();
   }, [currentUser]);
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div className="p-10 text-center">Loading...</div>;
 
-  // If profile is not completed (or doesn't have the 'profileCompleted' flag)
   if (!profile || !profile.profileCompleted) {
     return (
-      <div>
-        <div style={{ textAlign: "right", padding: "10px" }}>
-          <button onClick={logout}>Logout</button>
+      <>
+        <div className="absolute top-4 right-4">
+          <button onClick={logout} className="text-red-500 underline">Logout</button>
         </div>
         <WorkerProfileForm onProfileComplete={fetchProfile} />
-      </div>
+      </>
     );
   }
 
-  // --- MAIN DASHBOARD CONTENT (Visible only after profile is done) ---
   return (
-    <div style={{ padding: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Worker Dashboard</h1>
-        <button onClick={logout}>Logout</button>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Navbar */}
+      <nav className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16 items-center">
+            <h1 className="text-xl font-bold text-blue-600">LabourLink</h1>
+            <button onClick={logout} className="text-gray-600 hover:text-red-500">Logout</button>
+          </div>
+        </div>
+      </nav>
 
-      <div style={{ background: "#f0f0f0", padding: "15px", borderRadius: "8px" }}>
-        <h3>Welcome, {profile.name}</h3>
-        <p><strong>Location:</strong> {profile.district}, {profile.state}</p>
-        <p><strong>Skills:</strong> {profile.skills.join(", ")}</p>
-      </div>
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        
+        {/* Profile Card */}
+        <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome, {profile.name} 👋</h2>
+          <div className="flex flex-wrap gap-4 text-gray-600">
+            <p>📍 {profile.district}, {profile.state}</p>
+            <p>🛠 {profile.skills.join(", ")}</p>
+          </div>
+        </div>
 
-      <hr />
-      
-      <h3>Find Jobs</h3>
-      <p>Job listings will appear here in the next steps.</p>
+        {/* Jobs Section */}
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">Find Jobs</h3>
+        <div className="bg-white shadow rounded-lg p-10 text-center text-gray-500 border-2 border-dashed border-gray-300">
+          <p>Job listings will appear here in the next steps.</p>
+        </div>
+
+      </div>
     </div>
   );
 }

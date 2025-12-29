@@ -11,7 +11,7 @@ export default function WorkerProfileForm({ onProfileComplete }) {
     age: "",
     state: "",
     district: "",
-    skills: "" // We will save this as a comma-separated string for simplicity
+    skills: ""
   });
 
   const handleChange = (e) => {
@@ -22,80 +22,76 @@ export default function WorkerProfileForm({ onProfileComplete }) {
     e.preventDefault();
     setLoading(true);
     try {
-      // Split skills string into an array
       const skillsArray = formData.skills.split(",").map(skill => skill.trim());
-      
       await updateWorkerProfile(currentUser.uid, {
         name: formData.name,
         age: formData.age,
         state: formData.state,
         district: formData.district,
         skills: skillsArray,
-        profileCompleted: true // Flag to know they finished setup
+        profileCompleted: true 
       });
-
-      // Notify parent component to refresh
       onProfileComplete();
     } catch (error) {
-      console.error("Error saving profile:", error);
-      alert("Failed to save profile.");
+      console.error(error);
     }
     setLoading(false);
   };
 
   return (
-    <div style={{ maxWidth: "500px", margin: "20px auto", padding: "20px", border: "1px solid #ddd" }}>
-      <h3>Complete Your Profile</h3>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: "10px" }}>
-          <label>Full Name:</label><br/>
-          <input 
-            type="text" name="name" required 
-            value={formData.name} onChange={handleChange} 
-            style={{ width: "100%", padding: "8px" }} 
-          />
-        </div>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+      <div className="w-full max-w-lg p-8 bg-white rounded-lg shadow-lg">
+        <h3 className="mb-6 text-2xl font-bold text-gray-800">Complete Your Profile</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Full Name</label>
+            <input type="text" name="name" required 
+              className="w-full p-2 mt-1 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+              value={formData.name} onChange={handleChange} 
+            />
+          </div>
 
-        <div style={{ marginBottom: "10px" }}>
-          <label>Age:</label><br/>
-          <input 
-            type="number" name="age" required 
-            value={formData.age} onChange={handleChange} 
-            style={{ width: "100%", padding: "8px" }} 
-          />
-        </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Age</label>
+              <input type="number" name="age" required 
+                className="w-full p-2 mt-1 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                value={formData.age} onChange={handleChange} 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">State</label>
+              <input type="text" name="state" required 
+                className="w-full p-2 mt-1 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                value={formData.state} onChange={handleChange} 
+              />
+            </div>
+          </div>
 
-        <div style={{ marginBottom: "10px" }}>
-          <label>State:</label><br/>
-          <input 
-            type="text" name="state" placeholder="e.g. Tamil Nadu" required 
-            value={formData.state} onChange={handleChange} 
-            style={{ width: "100%", padding: "8px" }} 
-          />
-        </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">District</label>
+            <input type="text" name="district" required 
+              className="w-full p-2 mt-1 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+              value={formData.district} onChange={handleChange} 
+            />
+          </div>
 
-        <div style={{ marginBottom: "10px" }}>
-          <label>District:</label><br/>
-          <input 
-            type="text" name="district" placeholder="e.g. Coimbatore" required 
-            value={formData.district} onChange={handleChange} 
-            style={{ width: "100%", padding: "8px" }} 
-          />
-        </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Skills (comma separated)</label>
+            <input type="text" name="skills" placeholder="Weaving, Packing..." required 
+              className="w-full p-2 mt-1 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+              value={formData.skills} onChange={handleChange} 
+            />
+          </div>
 
-        <div style={{ marginBottom: "10px" }}>
-          <label>Skills (separate by comma):</label><br/>
-          <input 
-            type="text" name="skills" placeholder="e.g. Weaving, Packing, Helper" required 
-            value={formData.skills} onChange={handleChange} 
-            style={{ width: "100%", padding: "8px" }} 
-          />
-        </div>
-
-        <button type="submit" disabled={loading} style={{ padding: "10px 20px" }}>
-          {loading ? "Saving..." : "Save Profile"}
-        </button>
-      </form>
+          <button type="submit" disabled={loading} 
+            className="w-full px-4 py-2 font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700"
+          >
+            {loading ? "Saving..." : "Save Profile"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
