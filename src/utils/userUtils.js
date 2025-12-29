@@ -51,3 +51,18 @@ export async function updateWorkerProfile(uid, data) {
   // We use { merge: true } so we don't overwrite existing fields like 'verified'
   await setDoc(workerRef, data, { merge: true });
 }
+
+// ... existing code ...
+
+// Fetch Owner Profile
+export async function getOwnerProfile(uid) {
+  const docRef = doc(db, "owners", uid);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? docSnap.data() : null;
+}
+
+// Update Owner Profile
+export async function updateOwnerProfile(uid, data) {
+  const ownerRef = doc(db, "owners", uid);
+  await setDoc(ownerRef, data, { merge: true });
+}
