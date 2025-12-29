@@ -1,20 +1,38 @@
-// src/App.js
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Login from "./components/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
+import RoleSelection from "./components/RoleSelection";
+import WorkerDashboard from "./components/WorkerDashboard";
+import OwnerDashboard from "./components/OwnerDashboard";
+import { getUserRole } from "./utils/userUtils";
 
-// Simple Dashboard Component for testing
-function Dashboard() {
-  const { logout, currentUser } = useAuth();
-  return (
-    <div style={{ padding: "20px" }}>
-      <h1>Dashboard</h1>
-      <p>Welcome, User: {currentUser?.phoneNumber}</p>
-      <button onClick={logout}>Logout</button>
-    </div>
-  );
+// This component decides where to send the user
+function MainRedirect() {
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    async function checkRole() {
+      if (currentUser) {
+        const role = await getUserRole(currentUser.uid);
+        if (!role) {
+          navigate("/role-selection"); // New User
+        } else if (role === "worker") {
+          navigate("/worker-dashboard");
+        } else if (role === "owner") {
+          navigate("/owner-dashboard");
+        }
+      }
+      setChecking(false);
+    }
+    checkRole();
+  }, [currentUser, navigate]);
+
+  if (checking) return <div>Loading User Data...</div>;
+  return null;
 }
 
 function App() {
@@ -22,18 +40,23 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
-          {/* Public Route */}
           <Route path="/" element={<Login />} />
+          
+          <Route path="/dashboard" element={
+             <ProtectedRoute><MainRedirect /></ProtectedRoute> 
+          } />
 
-          {/* Private Route */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/role-selection" element={
+            <ProtectedRoute><RoleSelection /></ProtectedRoute>
+          } />
+          
+          <Route path="/worker-dashboard" element={
+            <ProtectedRoute><WorkerDashboard /></ProtectedRoute>
+          } />
+
+          <Route path="/owner-dashboard" element={
+            <ProtectedRoute><OwnerDashboard /></ProtectedRoute>
+          } />
         </Routes>
       </AuthProvider>
     </Router>
