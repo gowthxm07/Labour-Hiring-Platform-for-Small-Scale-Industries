@@ -36,3 +36,19 @@ export async function getOwnerVacancies(ownerId) {
     ...doc.data() 
   }));
 }
+
+// ... existing imports and functions ...
+
+// 4. Get ALL Active Vacancies (For Workers)
+export async function getAllActiveVacancies() {
+  const q = query(
+    collection(db, "vacancies"), 
+    where("status", "==", "active")
+  );
+  
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ 
+    id: doc.id, 
+    ...doc.data() 
+  }));
+}
