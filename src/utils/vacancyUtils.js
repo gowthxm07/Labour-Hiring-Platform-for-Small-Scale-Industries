@@ -71,3 +71,22 @@ export async function withdrawInterest(workerId, vacancyId) {
   const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
   await Promise.all(deletePromises);
 }
+
+// ... existing code ...
+
+// 8. Get Applications for a specific Job (For Owner)
+export async function getJobApplications(vacancyId) {
+  const q = query(
+    collection(db, "interests"), 
+    where("vacancyId", "==", vacancyId)
+  );
+  
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+// 9. Update Application Status (Accept/Reject)
+export async function updateApplicationStatus(interestId, newStatus) {
+  const ref = doc(db, "interests", interestId);
+  await updateDoc(ref, { status: newStatus });
+}

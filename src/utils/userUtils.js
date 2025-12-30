@@ -66,3 +66,12 @@ export async function updateOwnerProfile(uid, data) {
   const ownerRef = doc(db, "owners", uid);
   await setDoc(ownerRef, data, { merge: true });
 }
+
+// ... existing code ...
+
+// Get User Phone (For revealing contact info)
+export async function getUserPhone(uid) {
+  const docRef = doc(db, "users", uid);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? docSnap.data().phone : null;
+}

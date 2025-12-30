@@ -1,10 +1,10 @@
-// src/components/OwnerDashboard.js
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getOwnerProfile } from "../utils/userUtils";
 import { getOwnerVacancies } from "../utils/vacancyUtils";
 import OwnerProfileForm from "./OwnerProfileForm";
 import CreateVacancyForm from "./CreateVacancyForm";
+import ApplicantsModal from "./ApplicantsModal"; // Import the new Modal
 
 export default function OwnerDashboard() {
   const { currentUser, logout } = useAuth();
@@ -13,9 +13,11 @@ export default function OwnerDashboard() {
   
   const [vacancies, setVacancies] = useState([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingJob, setEditingJob] = useState(null); // Track which job is being edited
+  const [editingJob, setEditingJob] = useState(null);
+  
+  // State for Applicants Modal
+  const [viewingApplicantsFor, setViewingApplicantsFor] = useState(null);
 
-  // Fetch Profile
   const fetchProfile = async () => {
     if (currentUser) {
       const data = await getOwnerProfile(currentUser.uid);
@@ -28,7 +30,6 @@ export default function OwnerDashboard() {
     }
   };
 
-  // Fetch Vacancies
   const fetchVacancies = async () => {
     const jobs = await getOwnerVacancies(currentUser.uid);
     setVacancies(jobs);
@@ -40,22 +41,19 @@ export default function OwnerDashboard() {
     // eslint-disable-next-line
   }, [currentUser]);
 
-  // Handle opening the form for EDITING
   const handleEditClick = (job) => {
     setEditingJob(job);
     setShowCreateForm(true);
   };
 
-  // Handle closing form
   const handleFormClose = () => {
     setShowCreateForm(false);
-    setEditingJob(null); // Clear edit state
+    setEditingJob(null);
   };
 
-  // Handle successful save
   const handleFormSuccess = () => {
     handleFormClose();
-    fetchVacancies(); // Refresh list
+    fetchVacancies();
   };
 
   if (loading) return <div className="p-10 text-center">Loading...</div>;
@@ -119,9 +117,8 @@ export default function OwnerDashboard() {
               </div>
             ) : (
               vacancies.map((job) => (
-                <div key={job.id} className="bg-white p-5 rounded-lg shadow border-l-4 border-blue-500 relative">
+                <div key={job.id} className="bg-white p-5 rounded-lg shadow border-l-4 border-blue-500 relative flex flex-col h-full">
                   
-                  {/* Edit Button */}
                   <button 
                     onClick={() => handleEditClick(job)}
                     className="absolute top-4 right-4 text-gray-400 hover:text-blue-600"
@@ -138,7 +135,6 @@ export default function OwnerDashboard() {
                     <span className="text-green-600">₹{job.salary}</span>
                   </div>
 
-                  {/* Facilities Display */}
                   <div className="flex gap-2 mb-3 text-xs">
                     {job.accommodation && job.accommodation !== "None" && (
                       <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
@@ -152,19 +148,35 @@ export default function OwnerDashboard() {
                     )}
                   </div>
 
-                  <p className="text-gray-500 text-sm mb-4 line-clamp-2">{job.description}</p>
+                  <p className="text-gray-500 text-sm mb-4 line-clamp-2 flex-grow">{job.description}</p>
                   
-                  <div className="flex justify-between items-center border-t pt-3">
-                    <span className="text-xs text-gray-400">Posted: {new Date(job.createdAt).toLocaleDateString()}</span>
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                      Active
-                    </span>
+                  {/* Footer Actions */}
+                  <div className="border-t pt-3 mt-auto">
+                    <button 
+                        onClick={() => setViewingApplicantsFor(job)}
+                        className="w-full bg-indigo-50 text-indigo-700 py-2 rounded font-medium hover:bg-indigo-100 border border-indigo-200"
+                    >
+                        View Applicants
+                    </button>
+                    <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-gray-400">Posted: {new Date(job.createdAt).toLocaleDateString()}</span>
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Active</span>
+                    </div>
                   </div>
                 </div>
               ))
             )}
           </div>
         )}
+
+        {/* Render Modal if a job is selected */}
+        {viewingApplicantsFor && (
+            <ApplicantsModal 
+                vacancy={viewingApplicantsFor} 
+                onClose={() => setViewingApplicantsFor(null)} 
+            />
+        )}
+
       </div>
     </div>
   );
