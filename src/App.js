@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import LandingPage from "./components/LandingPage"; // Import the new Landing Page
 import Login from "./components/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleSelection from "./components/RoleSelection";
@@ -8,7 +9,7 @@ import WorkerDashboard from "./components/WorkerDashboard";
 import OwnerDashboard from "./components/OwnerDashboard";
 import { getUserRole } from "./utils/userUtils";
 
-// This component decides where to send the user
+// Main Redirect Logic
 function MainRedirect() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ function MainRedirect() {
       if (currentUser) {
         const role = await getUserRole(currentUser.uid);
         if (!role) {
-          navigate("/role-selection"); // New User
+          navigate("/role-selection");
         } else if (role === "worker") {
           navigate("/worker-dashboard");
         } else if (role === "owner") {
@@ -31,7 +32,7 @@ function MainRedirect() {
     checkRole();
   }, [currentUser, navigate]);
 
-  if (checking) return <div>Loading User Data...</div>;
+  if (checking) return <div className="p-10 text-center">Loading User Data...</div>;
   return null;
 }
 
@@ -40,8 +41,11 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<Login />} />
+          {/* Public Routes */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
           
+          {/* Protected Routes */}
           <Route path="/dashboard" element={
              <ProtectedRoute><MainRedirect /></ProtectedRoute> 
           } />
