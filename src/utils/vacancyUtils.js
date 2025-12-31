@@ -10,6 +10,7 @@ import {
   getDoc 
 } from "firebase/firestore";
 import { db } from "../firebase";
+import { sendNotification } from "./notificationUtils"; // <--- ADDED THIS
 
 // Helper: Check if 48 hours have passed
 const isExpired = (lastUpdated) => {
@@ -76,14 +77,22 @@ export async function getAllActiveVacancies() {
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
-// 6. Submit Interest
-export async function submitInterest(workerId, vacancyId, ownerId, workerName) {
+// 6. Submit Interest (UPDATED WITH NOTIFICATION)
+export async function submitInterest(workerId, vacancyId, ownerId, workerName, jobTitle) {
   const interestData = {
     workerId, vacancyId, ownerId, workerName,
     status: "pending", 
     createdAt: new Date().toISOString()
   };
+  
   await addDoc(collection(db, "interests"), interestData);
+
+  // SEND NOTIFICATION TO OWNER
+  await sendNotification(
+    ownerId, 
+    "New Job Application", 
+    `${workerName} has applied for your position: ${jobTitle}`
+  );
 }
 
 // 7. Get Applied Job IDs
@@ -151,7 +160,7 @@ export async function getWorkerApplicationDetails(workerId) {
       companyName: ownerData.companyName,
       ownerPhone: ownerPhone,
       vacancyId: interest.vacancyId,
-      ownerId: interest.ownerId // <--- ADDED THIS for Rating
+      ownerId: interest.ownerId 
     };
   }));
 

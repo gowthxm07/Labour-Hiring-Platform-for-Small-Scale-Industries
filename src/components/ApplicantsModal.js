@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getJobApplications, updateApplicationStatus, updateVacancyCounts } from "../utils/vacancyUtils";
 import { getWorkerProfile, getUserPhone, hasUserRated } from "../utils/userUtils";
 import { useAuth } from "../contexts/AuthContext";
+import { sendNotification } from "../utils/notificationUtils"; // <--- ADDED
 import RateUserModal from "./RateUserModal";
 
 export default function ApplicantsModal({ vacancy, onClose }) {
@@ -46,6 +47,16 @@ export default function ApplicantsModal({ vacancy, onClose }) {
     if (currentStatus === "accepted" && newStatus === "rejected") countChange = 1; 
 
     if (countChange !== 0) await updateVacancyCounts(vacancy.id, countChange);
+
+    // --- SEND NOTIFICATION TO WORKER ---
+    if (newStatus === "accepted") {
+        await sendNotification(
+            workerId,
+            "Application Accepted! 🎉",
+            `Congratulations! You have been selected for the job: ${vacancy.jobTitle}. Check "My Applications" for contact details.`
+        );
+    }
+    // -----------------------------------
     
     let phone = null;
     if (newStatus === "accepted") phone = await getUserPhone(workerId);

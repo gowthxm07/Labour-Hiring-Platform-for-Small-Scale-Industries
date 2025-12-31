@@ -5,6 +5,7 @@ import { getAllActiveVacancies, submitInterest, getWorkerApplications, withdrawI
 import { hasUserRated } from "../utils/userUtils";
 import WorkerProfileForm from "./WorkerProfileForm";
 import RateUserModal from "./RateUserModal";
+import NotificationBell from "./NotificationBell"; // <--- ADDED
 
 export default function WorkerDashboard() {
   const { currentUser, logout } = useAuth();
@@ -47,7 +48,9 @@ export default function WorkerDashboard() {
     if (!window.confirm(`Show interest in "${job.jobTitle}"?`)) return;
     setActionLoading(job.id);
     try {
-      await submitInterest(currentUser.uid, job.id, job.ownerId, profile.name);
+      // UPDATED: Added job.jobTitle as the last argument
+      await submitInterest(currentUser.uid, job.id, job.ownerId, profile.name, job.jobTitle);
+      
       setAppliedJobIds([...appliedJobIds, job.id]);
       fetchData(); 
     } catch (error) {
@@ -111,6 +114,10 @@ export default function WorkerDashboard() {
           <div className="flex justify-between h-16 items-center">
             <h1 className="text-xl font-bold text-blue-600 flex items-center gap-2">🏭 LabourLink</h1>
             <div className="flex items-center gap-4">
+              
+              {/* NOTIFICATION BELL ADDED HERE */}
+              <NotificationBell />
+
               <span className="text-gray-600 hidden sm:block">Hello, {profile.name}</span>
               <button onClick={logout} className="text-sm text-red-500 border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition">Logout</button>
             </div>
