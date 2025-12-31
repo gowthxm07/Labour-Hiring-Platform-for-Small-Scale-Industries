@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getOwnerProfile } from "../utils/userUtils";
 import { getOwnerVacancies, toggleVacancyStatus } from "../utils/vacancyUtils";
+import { shareJobOnWhatsApp } from "../utils/whatsappUtils"; // <--- ADDED
 import OwnerProfileForm from "./OwnerProfileForm";
 import CreateVacancyForm from "./CreateVacancyForm";
 import ApplicantsModal from "./ApplicantsModal"; 
-import NotificationBell from "./NotificationBell"; // <--- ADDED
+import NotificationBell from "./NotificationBell";
 
 export default function OwnerDashboard() {
   const { currentUser, logout } = useAuth();
@@ -93,10 +94,7 @@ export default function OwnerDashboard() {
             <h1 className="text-xl font-bold text-blue-600">LabourLink Business</h1>
             <div className="flex items-center gap-4">
               <span className="text-gray-600 hidden sm:block">Welcome, {profile.ownerName}</span>
-              
-              {/* NOTIFICATION BELL ADDED HERE */}
               <NotificationBell />
-
               <button onClick={logout} className="text-sm text-red-500 border border-red-200 px-3 py-1 rounded hover:bg-red-50">Logout</button>
             </div>
           </div>
@@ -132,7 +130,13 @@ export default function OwnerDashboard() {
               vacancies.map((job) => (
                 <div key={job.id} className={`bg-white p-5 rounded-lg shadow border-l-4 relative flex flex-col h-full ${job.status === "active" ? "border-blue-500" : "border-red-500 bg-gray-50"}`}>
                   <button onClick={() => handleEditClick(job)} className="absolute top-4 right-4 text-gray-400 hover:text-blue-600" title="Edit Job">✏️</button>
-                  <h3 className="text-lg font-bold text-gray-800 pr-8">{job.jobTitle}</h3>
+                  <h3 className="text-lg font-bold text-gray-800 pr-8 flex items-center gap-2">
+                    {job.jobTitle}
+                     {/* SHARE BUTTON */}
+                     <button onClick={() => shareJobOnWhatsApp(job)} className="text-green-500 hover:text-green-600" title="Share on WhatsApp">
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
+                    </button>
+                  </h3>
                   <p className="text-gray-600 text-sm mb-2">{job.location}</p>
                   <div className="flex justify-between items-center text-sm font-medium text-gray-700 bg-gray-50 p-2 rounded mb-3"><span>👥 Needs: {job.workerCount}</span><span className="text-green-600">₹{job.salary}</span></div>
                   <div className="flex gap-2 mb-3 text-xs">
