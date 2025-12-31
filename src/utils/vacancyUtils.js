@@ -1,4 +1,3 @@
-// src/utils/vacancyUtils.js
 import { 
   collection, 
   addDoc, 
@@ -12,6 +11,16 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 
+// Helper: Check if 48 hours have passed
+const isExpired = (lastUpdated) => {
+  if (!lastUpdated) return false;
+  const now = new Date();
+  const updated = new Date(lastUpdated);
+  const diffTime = Math.abs(now - updated);
+  const diffHours = Math.ceil(diffTime / (1000 * 60 * 60)); 
+  return diffHours >= 48;
+};
+
 // 1. Post a new Job
 export async function createVacancy(ownerId, vacancyData) {
   const data = {
@@ -19,6 +28,7 @@ export async function createVacancy(ownerId, vacancyData) {
     ownerId: ownerId,
     createdAt: new Date().toISOString(),
     status: "active", 
+    statusUpdatedAt: new Date().toISOString(), // Track when status changed
     filledCount: 0,
     applicants: [] 
   };
@@ -33,7 +43,16 @@ export async function updateVacancy(vacancyId, updatedData) {
   await updateDoc(jobRef, updatedData);
 }
 
-// 3. Get Jobs posted by a specific Owner
+// 3. Toggle Job Status (Active <-> Inactive)
+export async function toggleVacancyStatus(vacancyId, newStatus) {
+  const jobRef = doc(db, "vacancies", vacancyId);
+  await updateDoc(jobRef, {
+    status: newStatus,
+    statusUpdatedAt: new Date().toISOString()
+  });
+}
+
+// 4. Get Jobs posted by Owner (With Auto-Cleanup Logic)
 export async function getOwnerVacancies(ownerId) {
   const q = query(
     collection(db, "vacancies"), 
@@ -41,13 +60,25 @@ export async function getOwnerVacancies(ownerId) {
   );
   
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ 
-    id: doc.id, 
-    ...doc.data() 
-  }));
+  const validJobs = [];
+
+  for (const document of querySnapshot.docs) {
+    const job = { id: document.id, ...document.data() };
+    
+    // CHECK: Is it Inactive AND older than 48 hours?
+    if (job.status === "inactive" && isExpired(job.statusUpdatedAt)) {
+       // Delete it silently
+       await deleteDoc(document.ref);
+       console.log(`Auto-deleted expired job: ${job.jobTitle}`);
+    } else {
+       validJobs.push(job);
+    }
+  }
+
+  return validJobs;
 }
 
-// 4. Get ALL Active Vacancies (For Workers)
+// 5. Get ALL Active Vacancies (For Workers)
 export async function getAllActiveVacancies() {
   const q = query(
     collection(db, "vacancies"), 
@@ -61,7 +92,7 @@ export async function getAllActiveVacancies() {
   }));
 }
 
-// 5. Submit Interest (Worker applies for job)
+// 6. Submit Interest
 export async function submitInterest(workerId, vacancyId, ownerId, workerName) {
   const interestData = {
     workerId,
@@ -71,75 +102,64 @@ export async function submitInterest(workerId, vacancyId, ownerId, workerName) {
     status: "pending", 
     createdAt: new Date().toISOString()
   };
-  
   await addDoc(collection(db, "interests"), interestData);
 }
 
-// 6. Get Jobs the worker has ALREADY applied for
+// 7. Get Applied Job IDs
 export async function getWorkerApplications(workerId) {
   const q = query(
     collection(db, "interests"), 
     where("workerId", "==", workerId)
   );
-  
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => doc.data().vacancyId);
 }
 
-// 7. Withdraw Interest (Worker cancels application)
+// 8. Withdraw Interest
 export async function withdrawInterest(workerId, vacancyId) {
   const q = query(
     collection(db, "interests"), 
     where("workerId", "==", workerId),
     where("vacancyId", "==", vacancyId)
   );
-  
   const querySnapshot = await getDocs(q);
-  
   const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
   await Promise.all(deletePromises);
 }
 
-// 8. Get Applications for a specific Job (For Owner)
+// 9. Get Applications for a Job
 export async function getJobApplications(vacancyId) {
   const q = query(
     collection(db, "interests"), 
     where("vacancyId", "==", vacancyId)
   );
-  
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
-// 9. Update Application Status (Accept/Reject)
+// 10. Update Application Status
 export async function updateApplicationStatus(interestId, newStatus) {
   const ref = doc(db, "interests", interestId);
   await updateDoc(ref, { status: newStatus });
 }
 
-// 10. Get Detailed Applications for a Worker (Status + Job Details + Company Name)
+// 11. Get Detailed Worker Applications
 export async function getWorkerApplicationDetails(workerId) {
-  const q = query(
-    collection(db, "interests"), 
-    where("workerId", "==", workerId)
-  );
-  
+  const q = query(collection(db, "interests"), where("workerId", "==", workerId));
   const querySnapshot = await getDocs(q);
   
   const applications = await Promise.all(querySnapshot.docs.map(async (interestDoc) => {
     const interest = interestDoc.data();
     
-    // 1. Fetch Job Details
+    // Handle case where job might have been deleted
     const vacancyRef = doc(db, "vacancies", interest.vacancyId);
     const vacancySnap = await getDoc(vacancyRef);
-    const vacancyData = vacancySnap.exists() ? vacancySnap.data() : { jobTitle: "Unknown Job", location: "Unknown" };
+    const vacancyData = vacancySnap.exists() ? vacancySnap.data() : { jobTitle: "Job Closed/Expired", location: "-", salary: "-" };
 
-    // 2. Fetch Company Name (Owner Profile)
     const ownerRef = doc(db, "owners", interest.ownerId);
     const ownerSnap = await getDoc(ownerRef);
     const ownerData = ownerSnap.exists() ? ownerSnap.data() : { companyName: "Unknown Company" };
 
-    // 3. Fetch Owner Phone (Only if Accepted)
     let ownerPhone = null;
     if (interest.status === "accepted") {
         const userRef = doc(db, "users", interest.ownerId);
@@ -161,4 +181,23 @@ export async function getWorkerApplicationDetails(workerId) {
   }));
 
   return applications;
+}
+
+// 12. Update Vacancy Worker Count (RESTORED)
+export async function updateVacancyCounts(vacancyId, change) {
+  const vacancyRef = doc(db, "vacancies", vacancyId);
+  const vacancySnap = await getDoc(vacancyRef);
+
+  if (vacancySnap.exists()) {
+    const currentCount = Number(vacancySnap.data().workerCount) || 0;
+    const currentFilled = Number(vacancySnap.data().filledCount) || 0;
+    
+    const newWorkerCount = currentCount + change;
+    const newFilledCount = currentFilled - change;
+
+    await updateDoc(vacancyRef, {
+      workerCount: newWorkerCount,
+      filledCount: newFilledCount
+    });
+  }
 }

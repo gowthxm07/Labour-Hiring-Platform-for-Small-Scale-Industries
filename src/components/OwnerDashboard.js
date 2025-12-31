@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getOwnerProfile } from "../utils/userUtils";
-import { getOwnerVacancies } from "../utils/vacancyUtils";
+import { getOwnerVacancies, toggleVacancyStatus } from "../utils/vacancyUtils"; // Added toggleVacancyStatus
 import OwnerProfileForm from "./OwnerProfileForm";
 import CreateVacancyForm from "./CreateVacancyForm";
-import ApplicantsModal from "./ApplicantsModal"; // Import the new Modal
+import ApplicantsModal from "./ApplicantsModal"; 
 
 export default function OwnerDashboard() {
   const { currentUser, logout } = useAuth();
@@ -15,7 +15,6 @@ export default function OwnerDashboard() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
   
-  // State for Applicants Modal
   const [viewingApplicantsFor, setViewingApplicantsFor] = useState(null);
 
   const fetchProfile = async () => {
@@ -31,6 +30,7 @@ export default function OwnerDashboard() {
   };
 
   const fetchVacancies = async () => {
+    // This function now automatically cleans up expired jobs
     const jobs = await getOwnerVacancies(currentUser.uid);
     setVacancies(jobs);
     setLoading(false);
@@ -40,6 +40,26 @@ export default function OwnerDashboard() {
     fetchProfile();
     // eslint-disable-next-line
   }, [currentUser]);
+
+  // --- NEW: Handle Status Toggle ---
+  const handleToggleStatus = async (job) => {
+    if (job.status === "active") {
+        // Deactivating logic
+        const confirmDeactivate = window.confirm(
+            "⚠️ Make this job INACTIVE?\n\n" +
+            "If you do not reactivate this job within 48 hours, it will be PERMANENTLY DELETED.\n\n" +
+            "Click OK to stop hiring for this position."
+        );
+        if (!confirmDeactivate) return;
+        
+        await toggleVacancyStatus(job.id, "inactive");
+    } else {
+        // Reactivating logic
+        await toggleVacancyStatus(job.id, "active");
+    }
+    fetchVacancies(); // Refresh UI
+  };
+  // --------------------------------
 
   const handleEditClick = (job) => {
     setEditingJob(job);
@@ -117,7 +137,7 @@ export default function OwnerDashboard() {
               </div>
             ) : (
               vacancies.map((job) => (
-                <div key={job.id} className="bg-white p-5 rounded-lg shadow border-l-4 border-blue-500 relative flex flex-col h-full">
+                <div key={job.id} className={`bg-white p-5 rounded-lg shadow border-l-4 relative flex flex-col h-full ${job.status === "active" ? "border-blue-500" : "border-red-500 bg-gray-50"}`}>
                   
                   <button 
                     onClick={() => handleEditClick(job)}
@@ -150,17 +170,28 @@ export default function OwnerDashboard() {
 
                   <p className="text-gray-500 text-sm mb-4 line-clamp-2 flex-grow">{job.description}</p>
                   
-                  {/* Footer Actions */}
                   <div className="border-t pt-3 mt-auto">
                     <button 
                         onClick={() => setViewingApplicantsFor(job)}
-                        className="w-full bg-indigo-50 text-indigo-700 py-2 rounded font-medium hover:bg-indigo-100 border border-indigo-200"
+                        className="w-full bg-indigo-50 text-indigo-700 py-2 rounded font-medium hover:bg-indigo-100 border border-indigo-200 mb-3"
                     >
                         View Applicants
                     </button>
-                    <div className="flex justify-between items-center mt-2">
-                        <span className="text-xs text-gray-400">Posted: {new Date(job.createdAt).toLocaleDateString()}</span>
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Active</span>
+                    
+                    {/* STATUS TOGGLE BUTTON */}
+                    <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-400">{new Date(job.createdAt).toLocaleDateString()}</span>
+                        
+                        <button
+                            onClick={() => handleToggleStatus(job)}
+                            className={`text-xs px-3 py-1 rounded-full font-bold transition-colors ${
+                                job.status === "active" 
+                                ? "bg-green-100 text-green-800 hover:bg-green-200"
+                                : "bg-red-100 text-red-800 hover:bg-red-200"
+                            }`}
+                        >
+                            {job.status === "active" ? "🟢 Active" : "🔴 Inactive (Expiring)"}
+                        </button>
                     </div>
                   </div>
                 </div>
@@ -169,11 +200,14 @@ export default function OwnerDashboard() {
           </div>
         )}
 
-        {/* Render Modal if a job is selected */}
+        {/* --- MODAL SECTION --- */}
         {viewingApplicantsFor && (
             <ApplicantsModal 
                 vacancy={viewingApplicantsFor} 
-                onClose={() => setViewingApplicantsFor(null)} 
+                onClose={() => {
+                    setViewingApplicantsFor(null);
+                    fetchVacancies();
+                }} 
             />
         )}
 

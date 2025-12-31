@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { getJobApplications, updateApplicationStatus } from "../utils/vacancyUtils";
+import { getJobApplications, updateApplicationStatus, updateVacancyCounts } from "../utils/vacancyUtils";
 import { getWorkerProfile, getUserPhone } from "../utils/userUtils";
 
 export default function ApplicantsModal({ vacancy, onClose }) {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load applications and detailed worker profiles
+  // Load applications
   useEffect(() => {
     async function fetchData() {
       try {
@@ -15,18 +15,15 @@ export default function ApplicantsModal({ vacancy, onClose }) {
         const detailedApps = await Promise.all(interests.map(async (app) => {
             const workerProfile = await getWorkerProfile(app.workerId);
             let phone = null;
-            
             if (app.status === "accepted") {
                 phone = await getUserPhone(app.workerId);
             }
-
             return {
                 ...app,
                 workerProfile,
                 workerPhone: phone
             };
         }));
-        
         setApplications(detailedApps);
       } catch (error) {
         console.error(error);
@@ -36,20 +33,44 @@ export default function ApplicantsModal({ vacancy, onClose }) {
     fetchData();
   }, [vacancy.id]);
 
-  // Handle Accept/Reject
-  const handleStatusChange = async (appId, newStatus, workerId) => {
-    if (newStatus === "rejected" && !window.confirm("Are you sure you want to reject this worker?")) {
+  // Handle Accept/Reject with Count Logic
+  const handleStatusChange = async (appId, newStatus, workerId, currentStatus) => {
+    if (newStatus === "rejected" && !window.confirm("Are you sure you want to reject/revoke this worker?")) {
         return;
     }
 
     setLoading(true);
+
+    // 1. Update Application Status in DB
     await updateApplicationStatus(appId, newStatus);
+
+    // 2. Calculate Count Change
+    let countChange = 0;
+
+    // Case A: HIRING (Going from Pending/Rejected -> Accepted)
+    if (newStatus === "accepted" && currentStatus !== "accepted") {
+        console.log("Hiring Worker: Decreasing Count");
+        countChange = -1; // Decrease needed count
+    }
     
+    // Case B: FIRING/REVOKING (Going from Accepted -> Rejected)
+    if (currentStatus === "accepted" && newStatus === "rejected") {
+        console.log("Revoking Worker: Increasing Count");
+        countChange = 1; // Increase needed count
+    }
+
+    // 3. Update Vacancy Count in DB if needed
+    if (countChange !== 0) {
+        await updateVacancyCounts(vacancy.id, countChange);
+    }
+    
+    // 4. Fetch Phone if Accepted
     let phone = null;
     if (newStatus === "accepted") {
         phone = await getUserPhone(workerId);
     }
 
+    // 5. Update Local UI State
     setApplications(prev => prev.map(app => {
         if (app.id === appId) {
             return { 
@@ -116,13 +137,13 @@ export default function ApplicantsModal({ vacancy, onClose }) {
                     {app.status === "pending" && (
                         <>
                             <button 
-                                onClick={() => handleStatusChange(app.id, "accepted", app.workerId)}
+                                onClick={() => handleStatusChange(app.id, "accepted", app.workerId, app.status)}
                                 className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700 shadow-sm font-medium"
                             >
                                 ✅ Accept
                             </button>
                             <button 
-                                onClick={() => handleStatusChange(app.id, "rejected", app.workerId)}
+                                onClick={() => handleStatusChange(app.id, "rejected", app.workerId, app.status)}
                                 className="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded text-sm hover:bg-red-100 font-medium"
                             >
                                 ❌ Reject
@@ -136,9 +157,8 @@ export default function ApplicantsModal({ vacancy, onClose }) {
                             <span className="text-center text-green-600 font-bold text-sm border border-green-200 bg-green-50 rounded py-1">
                                 Accepted
                             </span>
-                            {/* UPDATED: Revoke Button */}
                             <button 
-                                onClick={() => handleStatusChange(app.id, "rejected", app.workerId)}
+                                onClick={() => handleStatusChange(app.id, "rejected", app.workerId, app.status)}
                                 className="text-xs bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-100 transition-colors"
                             >
                                 ↩ Revoke
@@ -152,9 +172,8 @@ export default function ApplicantsModal({ vacancy, onClose }) {
                             <span className="text-center text-red-500 font-bold text-sm bg-red-50 rounded py-1 border border-red-100">
                                 Rejected
                             </span>
-                            {/* UPDATED: Re-Accept Button */}
                             <button 
-                                onClick={() => handleStatusChange(app.id, "accepted", app.workerId)}
+                                onClick={() => handleStatusChange(app.id, "accepted", app.workerId, app.status)}
                                 className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
                             >
                                 ↺ Re-Accept
