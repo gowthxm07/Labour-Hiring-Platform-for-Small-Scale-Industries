@@ -1,5 +1,15 @@
 // src/utils/vacancyUtils.js
-import { collection, addDoc, deleteDoc, updateDoc, doc, query, where, getDocs } from "firebase/firestore";
+import { 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  updateDoc, 
+  doc, 
+  query, 
+  where, 
+  getDocs, 
+  getDoc 
+} from "firebase/firestore";
 import { db } from "../firebase";
 
 // 1. Post a new Job
@@ -12,6 +22,7 @@ export async function createVacancy(ownerId, vacancyData) {
     filledCount: 0,
     applicants: [] 
   };
+  
   const docRef = await addDoc(collection(db, "vacancies"), data);
   return docRef.id;
 }
@@ -24,16 +35,30 @@ export async function updateVacancy(vacancyId, updatedData) {
 
 // 3. Get Jobs posted by a specific Owner
 export async function getOwnerVacancies(ownerId) {
-  const q = query(collection(db, "vacancies"), where("ownerId", "==", ownerId));
+  const q = query(
+    collection(db, "vacancies"), 
+    where("ownerId", "==", ownerId)
+  );
+  
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return querySnapshot.docs.map(doc => ({ 
+    id: doc.id, 
+    ...doc.data() 
+  }));
 }
 
 // 4. Get ALL Active Vacancies (For Workers)
 export async function getAllActiveVacancies() {
-  const q = query(collection(db, "vacancies"), where("status", "==", "active"));
+  const q = query(
+    collection(db, "vacancies"), 
+    where("status", "==", "active")
+  );
+  
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return querySnapshot.docs.map(doc => ({ 
+    id: doc.id, 
+    ...doc.data() 
+  }));
 }
 
 // 5. Submit Interest (Worker applies for job)
@@ -46,19 +71,23 @@ export async function submitInterest(workerId, vacancyId, ownerId, workerName) {
     status: "pending", 
     createdAt: new Date().toISOString()
   };
+  
   await addDoc(collection(db, "interests"), interestData);
 }
 
 // 6. Get Jobs the worker has ALREADY applied for
 export async function getWorkerApplications(workerId) {
-  const q = query(collection(db, "interests"), where("workerId", "==", workerId));
+  const q = query(
+    collection(db, "interests"), 
+    where("workerId", "==", workerId)
+  );
+  
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => doc.data().vacancyId);
 }
 
-// 7. Withdraw Interest (Worker cancels application) - NEW FEATURE
+// 7. Withdraw Interest (Worker cancels application)
 export async function withdrawInterest(workerId, vacancyId) {
-  // Find the specific interest document to delete
   const q = query(
     collection(db, "interests"), 
     where("workerId", "==", workerId),
@@ -67,12 +96,9 @@ export async function withdrawInterest(workerId, vacancyId) {
   
   const querySnapshot = await getDocs(q);
   
-  // Delete the document(s) found
   const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
   await Promise.all(deletePromises);
 }
-
-// ... existing code ...
 
 // 8. Get Applications for a specific Job (For Owner)
 export async function getJobApplications(vacancyId) {
@@ -89,4 +115,50 @@ export async function getJobApplications(vacancyId) {
 export async function updateApplicationStatus(interestId, newStatus) {
   const ref = doc(db, "interests", interestId);
   await updateDoc(ref, { status: newStatus });
+}
+
+// 10. Get Detailed Applications for a Worker (Status + Job Details + Company Name)
+export async function getWorkerApplicationDetails(workerId) {
+  const q = query(
+    collection(db, "interests"), 
+    where("workerId", "==", workerId)
+  );
+  
+  const querySnapshot = await getDocs(q);
+  
+  const applications = await Promise.all(querySnapshot.docs.map(async (interestDoc) => {
+    const interest = interestDoc.data();
+    
+    // 1. Fetch Job Details
+    const vacancyRef = doc(db, "vacancies", interest.vacancyId);
+    const vacancySnap = await getDoc(vacancyRef);
+    const vacancyData = vacancySnap.exists() ? vacancySnap.data() : { jobTitle: "Unknown Job", location: "Unknown" };
+
+    // 2. Fetch Company Name (Owner Profile)
+    const ownerRef = doc(db, "owners", interest.ownerId);
+    const ownerSnap = await getDoc(ownerRef);
+    const ownerData = ownerSnap.exists() ? ownerSnap.data() : { companyName: "Unknown Company" };
+
+    // 3. Fetch Owner Phone (Only if Accepted)
+    let ownerPhone = null;
+    if (interest.status === "accepted") {
+        const userRef = doc(db, "users", interest.ownerId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) ownerPhone = userSnap.data().phone;
+    }
+
+    return {
+      id: interestDoc.id,
+      status: interest.status,
+      appliedAt: interest.createdAt,
+      jobTitle: vacancyData.jobTitle,
+      location: vacancyData.location,
+      salary: vacancyData.salary,
+      companyName: ownerData.companyName,
+      ownerPhone: ownerPhone,
+      vacancyId: interest.vacancyId
+    };
+  }));
+
+  return applications;
 }
