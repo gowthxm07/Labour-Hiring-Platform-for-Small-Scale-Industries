@@ -2,36 +2,30 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getWorkerProfile } from "../utils/userUtils";
 import { getAllActiveVacancies, submitInterest, getWorkerApplications, withdrawInterest, getWorkerApplicationDetails } from "../utils/vacancyUtils";
+import { hasUserRated } from "../utils/userUtils";
 import WorkerProfileForm from "./WorkerProfileForm";
+import RateUserModal from "./RateUserModal";
 
 export default function WorkerDashboard() {
   const { currentUser, logout } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // Data States
   const [vacancies, setVacancies] = useState([]);
   const [appliedJobIds, setAppliedJobIds] = useState([]); 
   const [myApplications, setMyApplications] = useState([]); 
-  
-  // UI States
   const [actionLoading, setActionLoading] = useState(null);
   const [activeTab, setActiveTab] = useState("findJobs"); 
+  const [ratingModal, setRatingModal] = useState(null);
 
-  // Filter State
   const [filters, setFilters] = useState({
-    keyword: "",
-    location: "",
-    minSalary: "",
-    accommodation: "All",
-    water: "All"
+    keyword: "", location: "", minSalary: "", accommodation: "All", water: "All"
   });
 
   const fetchData = async () => {
     if (currentUser) {
       const userProfile = await getWorkerProfile(currentUser.uid);
       setProfile(userProfile);
-
       if (userProfile && userProfile.profileCompleted) {
         const jobs = await getAllActiveVacancies();
         setVacancies(jobs);
@@ -77,13 +71,18 @@ export default function WorkerDashboard() {
     setActionLoading(null);
   };
 
-  const handleFilterChange = (e) => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
+  const handleRateOwner = async (ownerId, companyName) => {
+    if(!ownerId) return;
+    const alreadyRated = await hasUserRated(currentUser.uid, ownerId);
+    if (alreadyRated) {
+        alert("You have already rated this company.");
+        return;
+    }
+    setRatingModal({ toId: ownerId, targetName: companyName });
   };
 
-  const clearFilters = () => {
-    setFilters({ keyword: "", location: "", minSalary: "", accommodation: "All", water: "All" });
-  };
+  const handleFilterChange = (e) => setFilters({ ...filters, [e.target.name]: e.target.value });
+  const clearFilters = () => setFilters({ keyword: "", location: "", minSalary: "", accommodation: "All", water: "All" });
 
   const filteredVacancies = vacancies.filter((job) => {
     if (filters.keyword && !job.jobTitle.toLowerCase().includes(filters.keyword.toLowerCase())) return false;
@@ -120,7 +119,6 @@ export default function WorkerDashboard() {
       </nav>
 
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 mb-8 text-white">
             <h2 className="text-2xl font-bold">Welcome back, {profile.name} 👋</h2>
             <div className="mt-2 flex flex-wrap gap-4 text-blue-100 text-sm font-medium">
@@ -142,41 +140,18 @@ export default function WorkerDashboard() {
           <>
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mb-8">
                 <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-5">
-                    <div className="relative">
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Job Role</label>
-                        <input type="text" name="keyword" placeholder="Search role..." value={filters.keyword} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"/>
-                    </div>
-                    <div className="relative">
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Location</label>
-                        <input type="text" name="location" placeholder="City" value={filters.location} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"/>
-                    </div>
-                    <div className="relative">
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Min Salary</label>
-                        <input type="number" name="minSalary" placeholder="10000" value={filters.minSalary} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"/>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Room</label>
-                        <select name="accommodation" value={filters.accommodation} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                            <option value="All">Any</option><option value="Free">Free</option><option value="Paid">Paid</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Water</label>
-                        <select name="water" value={filters.water} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                            <option value="All">Any</option><option value="Free">Free</option><option value="Paid">Paid</option>
-                        </select>
-                    </div>
+                    <div className="relative"><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Job Role</label><input type="text" name="keyword" placeholder="Search role..." value={filters.keyword} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"/></div>
+                    <div className="relative"><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Location</label><input type="text" name="location" placeholder="City" value={filters.location} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"/></div>
+                    <div className="relative"><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Min Salary</label><input type="number" name="minSalary" placeholder="10000" value={filters.minSalary} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"/></div>
+                    <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Room</label><select name="accommodation" value={filters.accommodation} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"><option value="All">Any</option><option value="Free">Free</option><option value="Paid">Paid</option></select></div>
+                    <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Water</label><select name="water" value={filters.water} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"><option value="All">Any</option><option value="Free">Free</option><option value="Paid">Paid</option></select></div>
                 </div>
-                <div className="mt-4 flex justify-end">
-                    <button onClick={clearFilters} className="text-sm font-medium text-gray-500 hover:text-red-500 transition-colors">Clear Filters</button>
-                </div>
+                <div className="mt-4 flex justify-end"><button onClick={clearFilters} className="text-sm font-medium text-gray-500 hover:text-red-500 transition-colors">Clear Filters</button></div>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filteredVacancies.length === 0 ? (
-                <div className="col-span-full bg-white p-12 text-center border-2 border-dashed border-gray-300 rounded-xl">
-                  <p className="text-gray-500">No jobs found.</p>
-                </div>
+                <div className="col-span-full bg-white p-12 text-center border-2 border-dashed border-gray-300 rounded-xl"><p className="text-gray-500">No jobs found.</p></div>
               ) : (
                 filteredVacancies.map((job) => {
                   const isApplied = appliedJobIds.includes(job.id);
@@ -184,10 +159,7 @@ export default function WorkerDashboard() {
                   return (
                     <div key={job.id} className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 flex flex-col">
                       <div className="p-6 flex-1">
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="text-lg font-bold text-gray-800 leading-tight">{job.jobTitle}</h3>
-                          <span className="bg-green-50 text-green-700 text-xs px-2 py-1 rounded-md font-bold border border-green-100 whitespace-nowrap">₹{job.salary}</span>
-                        </div>
+                        <div className="flex justify-between items-start mb-2"><h3 className="text-lg font-bold text-gray-800 leading-tight">{job.jobTitle}</h3><span className="bg-green-50 text-green-700 text-xs px-2 py-1 rounded-md font-bold border border-green-100 whitespace-nowrap">₹{job.salary}</span></div>
                         <p className="text-gray-500 text-sm mb-4">📍 {job.location}</p>
                         <div className="flex flex-wrap gap-2 mb-4">
                           {job.accommodation !== "None" && <span className="text-xs px-2 py-1 rounded border bg-indigo-50 text-indigo-700 border-indigo-100">🏠 {job.accommodation} Room</span>}
@@ -198,13 +170,9 @@ export default function WorkerDashboard() {
                       <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-between items-center">
                         <span className="text-xs font-medium text-gray-500">Wanted: {job.workerCount}</span>
                         {isApplied ? (
-                          <button onClick={() => handleWithdraw(job.id, job.jobTitle)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-white text-red-600 border border-red-200 hover:bg-red-50">
-                            {isLoading ? "..." : "Withdraw"}
-                          </button>
+                          <button onClick={() => handleWithdraw(job.id, job.jobTitle)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-white text-red-600 border border-red-200 hover:bg-red-50">{isLoading ? "..." : "Withdraw"}</button>
                         ) : (
-                          <button onClick={() => handleApply(job)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-md">
-                            {isLoading ? "..." : "Show Interest"}
-                          </button>
+                          <button onClick={() => handleApply(job)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-md">{isLoading ? "..." : "Show Interest"}</button>
                         )}
                       </div>
                     </div>
@@ -218,11 +186,7 @@ export default function WorkerDashboard() {
         {activeTab === "myApps" && (
           <div className="space-y-4">
              {myApplications.length === 0 ? (
-                <div className="bg-white p-12 text-center border-2 border-dashed border-gray-300 rounded-xl">
-                  <div className="text-4xl mb-4">📂</div>
-                  <h3 className="text-lg font-medium text-gray-900">No applications yet</h3>
-                  <p className="text-gray-500 mb-4">Go to "Find Jobs" and show interest in a position.</p>
-                </div>
+                <div className="bg-white p-12 text-center border-2 border-dashed border-gray-300 rounded-xl"><div className="text-4xl mb-4">📂</div><h3 className="text-lg font-medium text-gray-900">No applications yet</h3></div>
              ) : (
                 myApplications.map((app) => (
                     <div key={app.id} className="bg-white rounded-lg shadow border border-gray-200 p-6 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -232,46 +196,36 @@ export default function WorkerDashboard() {
                             <p className="text-sm text-gray-500">📍 {app.location} • ₹{app.salary}/mo</p>
                             <p className="text-xs text-gray-400 mt-1">Applied: {new Date(app.appliedAt).toLocaleDateString()}</p>
                         </div>
-
                         <div className="flex flex-col items-center min-w-[150px] gap-2">
-                            {app.status === "pending" && (
-                                <span className="bg-yellow-100 text-yellow-800 px-4 py-1.5 rounded-full text-sm font-bold border border-yellow-200">
-                                    ⏳ Pending
-                                </span>
-                            )}
-                            {app.status === "rejected" && (
-                                <span className="bg-red-100 text-red-800 px-4 py-1.5 rounded-full text-sm font-bold border border-red-200">
-                                    ❌ Rejected
-                                </span>
-                            )}
+                            {app.status === "pending" && <span className="bg-yellow-100 text-yellow-800 px-4 py-1.5 rounded-full text-sm font-bold border border-yellow-200">⏳ Pending</span>}
+                            {app.status === "rejected" && <span className="bg-red-100 text-red-800 px-4 py-1.5 rounded-full text-sm font-bold border border-red-200">❌ Rejected</span>}
                             {app.status === "accepted" && (
                                 <div className="text-center">
-                                    <span className="bg-green-100 text-green-800 px-4 py-1.5 rounded-full text-sm font-bold border border-green-200 block mb-2">
-                                        ✅ Accepted!
-                                    </span>
-                                    <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded-lg text-sm font-bold animate-pulse">
-                                        📞 {app.ownerPhone || "Loading..."}
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">Please call the owner.</p>
+                                    <span className="bg-green-100 text-green-800 px-4 py-1.5 rounded-full text-sm font-bold border border-green-200 block mb-2">✅ Accepted!</span>
+                                    <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded-lg text-sm font-bold animate-pulse mb-2">📞 {app.ownerPhone || "Loading..."}</div>
+                                    <button onClick={() => handleRateOwner(app.ownerId, app.companyName)} className="text-xs text-yellow-600 font-bold hover:underline">⭐ Rate Company</button>
                                 </div>
                             )}
                         </div>
-
                         {app.status !== "rejected" && (
-                            <button 
-                                onClick={() => handleWithdraw(app.vacancyId, app.jobTitle)}
-                                className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 hover:text-red-700 px-3 py-2 rounded-lg transition-colors shadow-sm"
-                            >
-                                Withdraw
-                            </button>
+                            <button onClick={() => handleWithdraw(app.vacancyId, app.jobTitle)} className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 hover:text-red-700 px-3 py-2 rounded-lg transition-colors shadow-sm">Withdraw</button>
                         )}
                     </div>
                 ))
              )}
           </div>
         )}
-
       </div>
+
+      {ratingModal && (
+        <RateUserModal 
+            fromId={currentUser.uid}
+            toId={ratingModal.toId}
+            targetName={ratingModal.targetName}
+            userRole="worker"
+            onClose={() => setRatingModal(null)}
+        />
+      )}
     </div>
   );
 }
