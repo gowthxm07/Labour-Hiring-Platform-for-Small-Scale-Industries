@@ -3,7 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { getWorkerProfile } from "../utils/userUtils";
 import { getAllActiveVacancies, submitInterest, getWorkerApplications, withdrawInterest, getWorkerApplicationDetails } from "../utils/vacancyUtils";
 import { hasUserRated } from "../utils/userUtils";
-import { openWhatsAppChat, shareJobOnWhatsApp } from "../utils/whatsappUtils"; // <--- ADDED
+import { openWhatsAppChat, shareJobOnWhatsApp } from "../utils/whatsappUtils";
 import WorkerProfileForm from "./WorkerProfileForm";
 import RateUserModal from "./RateUserModal";
 import NotificationBell from "./NotificationBell"; 
@@ -215,14 +215,27 @@ export default function WorkerDashboard() {
                                 <div className="text-center">
                                     <span className="bg-green-100 text-green-800 px-4 py-1.5 rounded-full text-sm font-bold border border-green-200 block mb-2">✅ Accepted!</span>
                                     
-                                    {/* WHATSAPP CHAT BUTTON */}
-                                    <button 
-                                        onClick={() => openWhatsAppChat(app.ownerPhone, `Hello, I'm ${profile.name}. I saw your job posting for ${app.jobTitle}.`)}
-                                        className="bg-green-500 text-white px-3 py-1.5 rounded-full text-sm font-bold hover:bg-green-600 flex items-center gap-1 mb-2 w-full justify-center"
-                                    >
-                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
-                                        Chat
-                                    </button>
+                                    {/* --- UPDATED BUTTONS SECTION --- */}
+                                    <div className="flex gap-2 mb-2 w-full justify-center">
+                                      {/* WhatsApp Button */}
+                                      <button 
+                                          onClick={() => openWhatsAppChat(app.ownerPhone, `Hello, I'm ${profile.name}. I saw your job posting for ${app.jobTitle}.`)}
+                                          className="bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 flex items-center justify-center flex-1"
+                                          title="Chat on WhatsApp"
+                                      >
+                                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
+                                      </button>
+                                      
+                                      {/* Call Button (Fallback) */}
+                                      <a 
+                                        href={`tel:${app.ownerPhone}`} 
+                                        className="bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 flex items-center justify-center flex-1"
+                                        title="Call Directly"
+                                      >
+                                        📞
+                                      </a>
+                                    </div>
+                                    {/* ------------------------------- */}
 
                                     <div className="text-xs text-gray-500 mb-2">{app.ownerPhone}</div>
                                     <button onClick={() => handleRateOwner(app.ownerId, app.companyName)} className="text-xs text-yellow-600 font-bold hover:underline">⭐ Rate Company</button>
