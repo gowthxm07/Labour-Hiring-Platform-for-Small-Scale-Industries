@@ -1,16 +1,52 @@
-import React, { useState } from "react";
-import { db } from "../firebase"; // Only need DB, not Storage
+import React, { useState, useEffect } from "react";
+import { db } from "../firebase";
 import { doc, updateDoc } from "firebase/firestore";
+import { saveWorkerProfile, saveOwnerProfile } from "../utils/userUtils";
 
 export default function ProfileModal({ user, role, onClose, onUpdate }) {
+  // --- CLOUDINARY CONFIG (FILLED FROM YOUR SCREENSHOT) ---
+  const CLOUD_NAME = "dfof1lcqr"; 
+  const UPLOAD_PRESET = "labour_link"; 
+
+  // --- STATE ---
+  const [isEditing, setIsEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState(null);
   const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
 
-  // --- CONFIGURATION ---
-  const CLOUD_NAME = "dfof1lcqr"; // <--- REPLACE THIS
-  const UPLOAD_PRESET = "labour_link"; // <--- REPLACE THIS (e.g., "labour_link")
+  // Form State for Editing
+  const [formData, setFormData] = useState({
+    name: "",
+    ownerName: "",
+    age: "",
+    gender: "",
+    district: "",
+    state: "",
+    phone: "",
+    skills: "",
+    companyName: "",
+    address: ""
+  });
 
+  // Load user data into form when modal opens
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || "",
+        ownerName: user.ownerName || "",
+        age: user.age || "",
+        gender: user.gender || "Male",
+        district: user.district || "",
+        state: user.state || "",
+        phone: user.phone || "",
+        skills: user.skills ? user.skills.join(", ") : "",
+        companyName: user.companyName || "",
+        address: user.address || ""
+      });
+    }
+  }, [user]);
+
+  // --- PHOTO UPLOAD LOGIC ---
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
       setFile(e.target.files[0]);
@@ -18,53 +54,91 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
     }
   };
 
-  const handleUpload = async () => {
+  const handleUploadPhoto = async () => {
     if (!file) return;
     setUploading(true);
-
     try {
-      // 1. Upload to Cloudinary via their API (No SDK needed)
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", UPLOAD_PRESET);
+      const formDataUpload = new FormData();
+      formDataUpload.append("file", file);
+      formDataUpload.append("upload_preset", UPLOAD_PRESET);
 
+      // ⚠️ IMPORTANT: The URL below uses BACKTICKS (`), not single quotes (')
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-        {
-          method: "POST",
-          body: formData,
-        }
+        { method: "POST", body: formDataUpload }
       );
 
       const data = await response.json();
+
+      if (data.error) {
+          throw new Error(data.error.message); // This will tell us the exact Cloudinary error
+      }
       
       if (!data.secure_url) {
-          throw new Error("Cloudinary upload failed");
+          throw new Error("Upload failed - No URL returned");
       }
 
-      const imageUrl = data.secure_url;
-
-      // 2. Save the Image URL to Firestore (workers or owners collection)
+      // Save URL to Firestore
       const collectionName = role === "worker" ? "workers" : "owners";
       const userRef = doc(db, collectionName, user.uid);
       
-      await updateDoc(userRef, { photoURL: imageUrl });
+      // Update the photoURL field
+      await updateDoc(userRef, { photoURL: data.secure_url });
       
-      alert("Profile Picture Updated!");
-      onUpdate(); // Refresh parent data
-      onClose();
-
+      alert("Photo Updated Successfully!");
+      
+      // Refresh parent data to show the new image immediately
+      onUpdate(); 
+      
+      setFile(null); 
     } catch (error) {
-      console.error("Error uploading:", error);
-      alert("Upload failed. Please try again.");
+      console.error("Upload Error Details:", error);
+      alert(`Photo upload failed: ${error.message}`);
     }
     setUploading(false);
   };
 
+  // --- SAVE TEXT DETAILS LOGIC ---
+  const handleSaveChanges = async () => {
+    try {
+      if (role === "worker") {
+        const updatedData = {
+          name: formData.name,
+          age: Number(formData.age),
+          gender: formData.gender,
+          district: formData.district,
+          state: formData.state,
+          phone: formData.phone,
+          skills: formData.skills.split(",").map(s => s.trim()).filter(s => s) // Convert string back to array
+        };
+        await saveWorkerProfile(user.uid, updatedData);
+      } else {
+        const updatedData = {
+          ownerName: formData.ownerName,
+          companyName: formData.companyName,
+          address: formData.address,
+          phone: formData.phone
+        };
+        await saveOwnerProfile(user.uid, updatedData);
+      }
+
+      alert("Profile Updated Successfully!");
+      setIsEditing(false); // Exit edit mode
+      onUpdate(); // Refresh dashboard
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      alert("Failed to update profile.");
+    }
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-gray-800 text-2xl">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-200 text-2xl z-10 font-bold">
             &times;
         </button>
 
@@ -72,7 +146,7 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
         <div className="h-32 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
 
         <div className="px-6 pb-6">
-          {/* PROFILE IMAGE UPLOAD */}
+          {/* PROFILE IMAGE */}
           <div className="relative -mt-16 mb-4 flex justify-center">
             <div className="relative group">
                 <img 
@@ -86,50 +160,148 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
                 </label>
             </div>
           </div>
-
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">{user.name || user.ownerName}</h2>
-            <p className="text-gray-500">{role === "worker" ? "Worker" : "Business Owner"}</p>
-          </div>
-
-          {/* DETAILS GRID */}
-          <div className="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-4 rounded-lg border border-gray-100 mb-6">
-             <div>
-                <span className="block text-gray-400 text-xs uppercase">Location</span>
-                <span className="font-medium text-gray-700">{user.district || user.address}</span>
-             </div>
-             <div>
-                <span className="block text-gray-400 text-xs uppercase">Contact</span>
-                <span className="font-medium text-gray-700">{user.phone || "N/A"}</span>
-             </div>
-             {role === "worker" && (
-                <div className="col-span-2">
-                    <span className="block text-gray-400 text-xs uppercase">Skills</span>
-                    <span className="font-medium text-gray-700">{user.skills?.join(", ")}</span>
-                </div>
-             )}
-             {role === "owner" && (
-                <div className="col-span-2">
-                    <span className="block text-gray-400 text-xs uppercase">Company</span>
-                    <span className="font-medium text-gray-700">{user.companyName}</span>
-                </div>
-             )}
-          </div>
-
-          {/* ACTION BUTTONS */}
+          
+          {/* PHOTO SAVE BUTTON (Only appears if a new file is selected) */}
           {file && (
-            <button 
-                onClick={handleUpload} 
-                disabled={uploading}
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium mb-3 shadow-sm"
-            >
-                {uploading ? "Uploading to Cloud..." : "Save New Photo"}
-            </button>
+             <div className="text-center mb-4">
+                <button 
+                    onClick={handleUploadPhoto} 
+                    disabled={uploading}
+                    className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                >
+                    {uploading ? "Uploading..." : "⬆ Upload New Photo"}
+                </button>
+             </div>
           )}
 
-          <button onClick={onClose} className="w-full text-gray-500 hover:text-gray-700 text-sm">
-            Close Profile
-          </button>
+          {/* --- VIEW MODE --- */}
+          {!isEditing ? (
+            <>
+                <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-800">{user.name || user.ownerName}</h2>
+                    <p className="text-gray-500">{role === "worker" ? "Worker" : "Business Owner"}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-4 rounded-lg border border-gray-100 mb-6">
+                    <div className="col-span-2">
+                        <span className="block text-gray-400 text-xs uppercase">Phone</span>
+                        <span className="font-medium text-gray-700">{user.phone || "N/A"}</span>
+                    </div>
+
+                    {role === "worker" ? (
+                        <>
+                            <div>
+                                <span className="block text-gray-400 text-xs uppercase">Age / Gender</span>
+                                <span className="font-medium text-gray-700">{user.age} / {user.gender}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-400 text-xs uppercase">Location</span>
+                                <span className="font-medium text-gray-700">{user.district}, {user.state}</span>
+                            </div>
+                            <div className="col-span-2">
+                                <span className="block text-gray-400 text-xs uppercase">Skills</span>
+                                <span className="font-medium text-gray-700">{user.skills?.join(", ")}</span>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="col-span-2">
+                                <span className="block text-gray-400 text-xs uppercase">Company</span>
+                                <span className="font-medium text-gray-700">{user.companyName}</span>
+                            </div>
+                            <div className="col-span-2">
+                                <span className="block text-gray-400 text-xs uppercase">Address</span>
+                                <span className="font-medium text-gray-700">{user.address}</span>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <button 
+                    onClick={() => setIsEditing(true)}
+                    className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium mb-3 shadow-sm"
+                >
+                    ✏️ Edit Profile Details
+                </button>
+            </>
+          ) : (
+            
+            /* --- EDIT MODE --- */
+            <div className="space-y-3">
+                <h3 className="text-lg font-bold text-gray-700 text-center mb-2">Edit Information</h3>
+                
+                {role === "worker" ? (
+                    <>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500">Full Name</label>
+                            <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="text-xs font-bold text-gray-500">Age</label>
+                                <input type="number" name="age" value={formData.age} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-500">Gender</label>
+                                <select name="gender" value={formData.gender} onChange={handleChange} className="w-full border p-2 rounded text-sm bg-white">
+                                    <option>Male</option><option>Female</option><option>Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="text-xs font-bold text-gray-500">District</label>
+                                <input type="text" name="district" value={formData.district} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-500">State</label>
+                                <input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500">Skills (comma separated)</label>
+                            <input type="text" name="skills" value={formData.skills} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500">Owner Name</label>
+                            <input type="text" name="ownerName" value={formData.ownerName} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500">Company Name</label>
+                            <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500">Address</label>
+                            <textarea name="address" rows="2" value={formData.address} onChange={handleChange} className="w-full border p-2 rounded text-sm"></textarea>
+                        </div>
+                    </>
+                )}
+
+                {/* Common Fields */}
+                <div>
+                    <label className="text-xs font-bold text-gray-500">Phone Number</label>
+                    <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                    <button 
+                        onClick={() => setIsEditing(false)}
+                        className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 font-medium"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={handleSaveChanges}
+                        className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium shadow-sm"
+                    >
+                        💾 Save Changes
+                    </button>
+                </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
