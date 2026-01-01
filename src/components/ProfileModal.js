@@ -4,7 +4,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { saveWorkerProfile, saveOwnerProfile } from "../utils/userUtils";
 
 export default function ProfileModal({ user, role, onClose, onUpdate }) {
-  // --- CLOUDINARY CONFIG (FILLED FROM YOUR SCREENSHOT) ---
+  // --- CLOUDINARY CONFIG ---
   const CLOUD_NAME = "dfof1lcqr"; 
   const UPLOAD_PRESET = "labour_link"; 
 
@@ -62,37 +62,25 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
       formDataUpload.append("file", file);
       formDataUpload.append("upload_preset", UPLOAD_PRESET);
 
-      // ⚠️ IMPORTANT: The URL below uses BACKTICKS (`), not single quotes (')
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
         { method: "POST", body: formDataUpload }
       );
 
       const data = await response.json();
-
-      if (data.error) {
-          throw new Error(data.error.message); // This will tell us the exact Cloudinary error
-      }
-      
-      if (!data.secure_url) {
-          throw new Error("Upload failed - No URL returned");
-      }
+      if (data.error) throw new Error(data.error.message);
+      if (!data.secure_url) throw new Error("Upload failed");
 
       // Save URL to Firestore
       const collectionName = role === "worker" ? "workers" : "owners";
       const userRef = doc(db, collectionName, user.uid);
-      
-      // Update the photoURL field
       await updateDoc(userRef, { photoURL: data.secure_url });
       
       alert("Photo Updated Successfully!");
-      
-      // Refresh parent data to show the new image immediately
-      onUpdate(); 
-      
-      setFile(null); 
+      onUpdate();
+      setFile(null);
     } catch (error) {
-      console.error("Upload Error Details:", error);
+      console.error("Upload Error:", error);
       alert(`Photo upload failed: ${error.message}`);
     }
     setUploading(false);
@@ -109,12 +97,15 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
           district: formData.district,
           state: formData.state,
           phone: formData.phone,
-          skills: formData.skills.split(",").map(s => s.trim()).filter(s => s) // Convert string back to array
+          skills: formData.skills.split(",").map(s => s.trim()).filter(s => s)
         };
         await saveWorkerProfile(user.uid, updatedData);
       } else {
+        // --- UPDATED FOR OWNER ---
         const updatedData = {
           ownerName: formData.ownerName,
+          age: Number(formData.age), // Added Age
+          gender: formData.gender,   // Added Gender
           companyName: formData.companyName,
           address: formData.address,
           phone: formData.phone
@@ -123,8 +114,8 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
       }
 
       alert("Profile Updated Successfully!");
-      setIsEditing(false); // Exit edit mode
-      onUpdate(); // Refresh dashboard
+      setIsEditing(false);
+      onUpdate();
     } catch (error) {
       console.error("Error updating profile:", error);
       alert("Failed to update profile.");
@@ -161,7 +152,6 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
             </div>
           </div>
           
-          {/* PHOTO SAVE BUTTON (Only appears if a new file is selected) */}
           {file && (
              <div className="text-center mb-4">
                 <button 
@@ -188,13 +178,19 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
                         <span className="font-medium text-gray-700">{user.phone || "N/A"}</span>
                     </div>
 
+                    {/* Show Age/Gender for BOTH roles now */}
+                    <div>
+                        <span className="block text-gray-400 text-xs uppercase">Age</span>
+                        <span className="font-medium text-gray-700">{user.age || "-"}</span>
+                    </div>
+                    <div>
+                        <span className="block text-gray-400 text-xs uppercase">Gender</span>
+                        <span className="font-medium text-gray-700">{user.gender || "-"}</span>
+                    </div>
+
                     {role === "worker" ? (
                         <>
-                            <div>
-                                <span className="block text-gray-400 text-xs uppercase">Age / Gender</span>
-                                <span className="font-medium text-gray-700">{user.age} / {user.gender}</span>
-                            </div>
-                            <div>
+                            <div className="col-span-2">
                                 <span className="block text-gray-400 text-xs uppercase">Location</span>
                                 <span className="font-medium text-gray-700">{user.district}, {user.state}</span>
                             </div>
@@ -210,7 +206,7 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
                                 <span className="font-medium text-gray-700">{user.companyName}</span>
                             </div>
                             <div className="col-span-2">
-                                <span className="block text-gray-400 text-xs uppercase">Address</span>
+                                <span className="block text-gray-400 text-xs uppercase">Address / Location</span>
                                 <span className="font-medium text-gray-700">{user.address}</span>
                             </div>
                         </>
@@ -230,24 +226,34 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
             <div className="space-y-3">
                 <h3 className="text-lg font-bold text-gray-700 text-center mb-2">Edit Information</h3>
                 
+                {/* NAME FIELD */}
+                <div>
+                    <label className="text-xs font-bold text-gray-500">{role === "worker" ? "Full Name" : "Owner Name"}</label>
+                    <input 
+                        type="text" 
+                        name={role === "worker" ? "name" : "ownerName"} 
+                        value={role === "worker" ? formData.name : formData.ownerName} 
+                        onChange={handleChange} 
+                        className="w-full border p-2 rounded text-sm"
+                    />
+                </div>
+
+                {/* AGE & GENDER (For BOTH roles now) */}
+                <div className="grid grid-cols-2 gap-2">
+                    <div>
+                        <label className="text-xs font-bold text-gray-500">Age</label>
+                        <input type="number" name="age" value={formData.age} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500">Gender</label>
+                        <select name="gender" value={formData.gender} onChange={handleChange} className="w-full border p-2 rounded text-sm bg-white">
+                            <option>Male</option><option>Female</option><option>Other</option>
+                        </select>
+                    </div>
+                </div>
+
                 {role === "worker" ? (
                     <>
-                        <div>
-                            <label className="text-xs font-bold text-gray-500">Full Name</label>
-                            <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div>
-                                <label className="text-xs font-bold text-gray-500">Age</label>
-                                <input type="number" name="age" value={formData.age} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-gray-500">Gender</label>
-                                <select name="gender" value={formData.gender} onChange={handleChange} className="w-full border p-2 rounded text-sm bg-white">
-                                    <option>Male</option><option>Female</option><option>Other</option>
-                                </select>
-                            </div>
-                        </div>
                         <div className="grid grid-cols-2 gap-2">
                             <div>
                                 <label className="text-xs font-bold text-gray-500">District</label>
@@ -266,21 +272,17 @@ export default function ProfileModal({ user, role, onClose, onUpdate }) {
                 ) : (
                     <>
                         <div>
-                            <label className="text-xs font-bold text-gray-500">Owner Name</label>
-                            <input type="text" name="ownerName" value={formData.ownerName} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
-                        </div>
-                        <div>
                             <label className="text-xs font-bold text-gray-500">Company Name</label>
                             <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-gray-500">Address</label>
+                            <label className="text-xs font-bold text-gray-500">Address / Location</label>
                             <textarea name="address" rows="2" value={formData.address} onChange={handleChange} className="w-full border p-2 rounded text-sm"></textarea>
                         </div>
                     </>
                 )}
 
-                {/* Common Fields */}
+                {/* PHONE (Common) */}
                 <div>
                     <label className="text-xs font-bold text-gray-500">Phone Number</label>
                     <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="w-full border p-2 rounded text-sm"/>

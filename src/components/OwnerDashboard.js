@@ -2,11 +2,12 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getOwnerProfile } from "../utils/userUtils";
 import { getOwnerVacancies, toggleVacancyStatus } from "../utils/vacancyUtils";
-import { shareJobOnWhatsApp } from "../utils/whatsappUtils"; // <--- ADDED
+import { shareJobOnWhatsApp } from "../utils/whatsappUtils";
 import OwnerProfileForm from "./OwnerProfileForm";
 import CreateVacancyForm from "./CreateVacancyForm";
 import ApplicantsModal from "./ApplicantsModal"; 
 import NotificationBell from "./NotificationBell";
+import ProfileModal from "./ProfileModal"; // <--- IMPORT MODAL
 
 export default function OwnerDashboard() {
   const { currentUser, logout } = useAuth();
@@ -16,13 +17,19 @@ export default function OwnerDashboard() {
   const [vacancies, setVacancies] = useState([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
-  
   const [viewingApplicantsFor, setViewingApplicantsFor] = useState(null);
+  const [showProfile, setShowProfile] = useState(false); // <--- PROFILE STATE
 
   const fetchProfile = async () => {
     if (currentUser) {
       const data = await getOwnerProfile(currentUser.uid);
-      setProfile(data);
+      // Merge UID so modal can use it
+      if (data) {
+        setProfile({ ...data, uid: currentUser.uid });
+      } else {
+        setProfile(null);
+      }
+      
       if (data && data.profileCompleted) {
         fetchVacancies();
       } else {
@@ -93,8 +100,21 @@ export default function OwnerDashboard() {
           <div className="flex justify-between h-16 items-center">
             <h1 className="text-xl font-bold text-blue-600">LabourLink Business</h1>
             <div className="flex items-center gap-4">
-              <span className="text-gray-600 hidden sm:block">Welcome, {profile.ownerName}</span>
               <NotificationBell />
+              
+              {/* PROFILE AVATAR (Click to Open) */}
+              <div 
+                onClick={() => setShowProfile(true)}
+                className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded-lg transition-colors"
+              >
+                  <img 
+                    src={profile.photoURL || "https://ui-avatars.com/api/?name=" + profile.ownerName} 
+                    alt="Profile"
+                    className="w-8 h-8 rounded-full object-cover border border-gray-300"
+                  />
+                  <span className="text-gray-600 hidden sm:block font-medium text-sm">{profile.ownerName}</span>
+              </div>
+
               <button onClick={logout} className="text-sm text-red-500 border border-red-200 px-3 py-1 rounded hover:bg-red-50">Logout</button>
             </div>
           </div>
@@ -103,9 +123,17 @@ export default function OwnerDashboard() {
 
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">{profile.companyName}</h2>
-            <p className="text-gray-500">Manage your hiring and vacancies here.</p>
+          <div className="flex items-center gap-4">
+            {/* LARGE AVATAR IN HEADER */}
+            <img 
+                src={profile.photoURL || "https://ui-avatars.com/api/?name=" + profile.ownerName + "&background=random"} 
+                alt="Profile"
+                className="w-16 h-16 rounded-full border-4 border-white shadow-sm object-cover"
+            />
+            <div>
+                <h2 className="text-2xl font-bold text-gray-800">{profile.companyName}</h2>
+                <p className="text-gray-500">Manage your hiring and vacancies here.</p>
+            </div>
           </div>
           
           {!showCreateForm && (
@@ -132,7 +160,6 @@ export default function OwnerDashboard() {
                   <button onClick={() => handleEditClick(job)} className="absolute top-4 right-4 text-gray-400 hover:text-blue-600" title="Edit Job">✏️</button>
                   <h3 className="text-lg font-bold text-gray-800 pr-8 flex items-center gap-2">
                     {job.jobTitle}
-                     {/* SHARE BUTTON */}
                      <button onClick={() => shareJobOnWhatsApp(job)} className="text-green-500 hover:text-green-600" title="Share on WhatsApp">
                         <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
                     </button>
@@ -167,6 +194,16 @@ export default function OwnerDashboard() {
             />
         )}
       </div>
+
+      {/* PROFILE MODAL FOR OWNER */}
+      {showProfile && profile && (
+        <ProfileModal 
+            user={profile} 
+            role="owner" 
+            onClose={() => setShowProfile(false)} 
+            onUpdate={fetchProfile} 
+        />
+      )}
     </div>
   );
 }
