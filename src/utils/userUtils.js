@@ -1,4 +1,14 @@
-import { doc, getDoc, setDoc, addDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  addDoc, 
+  collection, 
+  query, 
+  where, 
+  getDocs,
+  orderBy // <--- Moved to top (Fixed)
+} from "firebase/firestore";
 import { db } from "../firebase";
 
 // 1. Get User Role
@@ -82,4 +92,16 @@ export async function hasUserRated(fromId, toId) {
   );
   const snap = await getDocs(q);
   return !snap.empty;
+}
+
+// 11. Get All Reviews for a User (Public Profile Feature)
+export async function getUserReviews(userId) {
+  const q = query(
+    collection(db, "reviews"), 
+    where("toId", "==", userId),
+    orderBy("createdAt", "desc")
+  );
+  
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }

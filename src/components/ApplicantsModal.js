@@ -5,12 +5,14 @@ import { useAuth } from "../contexts/AuthContext";
 import { sendNotification } from "../utils/notificationUtils";
 import { openWhatsAppChat } from "../utils/whatsappUtils"; 
 import RateUserModal from "./RateUserModal";
+import PublicProfileModal from "./PublicProfileModal"; // <--- ADDED
 
 export default function ApplicantsModal({ vacancy, onClose }) {
   const { currentUser } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ratingModal, setRatingModal] = useState(null);
+  const [viewProfileId, setViewProfileId] = useState(null); // <--- ADDED
 
   useEffect(() => {
     async function fetchData() {
@@ -38,23 +40,18 @@ export default function ApplicantsModal({ vacancy, onClose }) {
   }, [vacancy.id]);
 
   const handleStatusChange = async (appId, newStatus, workerId, currentStatus) => {
+    // ... (Keep existing status change logic exact same) ...
     if (newStatus === "rejected" && !window.confirm("Are you sure you want to reject/revoke this worker?")) return;
-
     setLoading(true);
     await updateApplicationStatus(appId, newStatus);
 
     let countChange = 0;
     if (newStatus === "accepted" && currentStatus !== "accepted") countChange = -1; 
     if (currentStatus === "accepted" && newStatus === "rejected") countChange = 1; 
-
     if (countChange !== 0) await updateVacancyCounts(vacancy.id, countChange);
 
     if (newStatus === "accepted") {
-        await sendNotification(
-            workerId,
-            "Application Accepted! 🎉",
-            `Congratulations! You have been selected for the job: ${vacancy.jobTitle}. Check "My Applications" for contact details.`
-        );
+        await sendNotification(workerId, "Application Accepted! 🎉", `Congratulations! You have been selected for the job: ${vacancy.jobTitle}. Check "My Applications" for contact details.`);
     }
     
     let phone = null;
@@ -96,34 +93,25 @@ export default function ApplicantsModal({ vacancy, onClose }) {
               {applications.map((app) => (
                 <div key={app.id} className="border rounded-lg p-4 flex flex-col md:flex-row justify-between gap-4 bg-white shadow-sm">
                   <div>
-                    <h4 className="font-bold text-lg text-gray-800">{app.workerProfile?.name || "Unknown"} <span className="text-sm font-normal text-gray-500 ml-2">({app.workerProfile?.age} yrs)</span></h4>
+                    {/* CLICKABLE WORKER NAME */}
+                    <h4 
+                        onClick={() => setViewProfileId(app.workerId)}
+                        className="font-bold text-lg text-blue-600 hover:underline cursor-pointer flex items-center gap-2"
+                    >
+                        {app.workerProfile?.name || "Unknown"} 
+                        <span className="text-sm font-normal text-gray-500 no-underline">({app.workerProfile?.age} yrs)</span>
+                    </h4>
+
                     <p className="text-sm text-gray-600">📍 {app.workerProfile?.district}, {app.workerProfile?.state}</p>
                     <p className="text-sm text-gray-600">🛠 {app.workerProfile?.skills?.join(", ")}</p>
                     <div className="mt-2">
                         {app.status === "accepted" ? (
                             <div className="flex flex-col gap-2">
-                                {/* --- UPDATED BUTTONS SECTION --- */}
                                 <div className="flex gap-2">
-                                  {/* WhatsApp */}
-                                  <button 
-                                      onClick={() => openWhatsAppChat(app.workerPhone, `Hello, we have accepted your application for ${vacancy.jobTitle}.`)}
-                                      className="bg-green-500 text-white px-3 py-1.5 rounded font-bold hover:bg-green-600 flex items-center gap-1"
-                                      title="Chat"
-                                  >
-                                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
-                                      Chat
-                                  </button>
-                                  {/* Call */}
-                                  <a 
-                                    href={`tel:${app.workerPhone}`} 
-                                    className="bg-blue-500 text-white px-3 py-1.5 rounded font-bold hover:bg-blue-600 flex items-center gap-1"
-                                    title="Call"
-                                  >
-                                    📞 Call
-                                  </a>
+                                  <button onClick={() => openWhatsAppChat(app.workerPhone, `Hello, we have accepted your application for ${vacancy.jobTitle}.`)} className="bg-green-500 text-white px-3 py-1.5 rounded font-bold hover:bg-green-600 flex items-center gap-1" title="Chat"><svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>Chat</button>
+                                  <a href={`tel:${app.workerPhone}`} className="bg-blue-500 text-white px-3 py-1.5 rounded font-bold hover:bg-blue-600 flex items-center gap-1" title="Call">📞 Call</a>
                                 </div>
                                 <div className="text-xs text-gray-500">Phone: {app.workerPhone}</div>
-                                {/* ------------------------------- */}
                             </div>
                         ) : (
                             <div className="bg-gray-100 text-gray-500 px-3 py-1 rounded inline-block text-sm">🔒 Contact Locked</div>
@@ -159,15 +147,11 @@ export default function ApplicantsModal({ vacancy, onClose }) {
         </div>
       </div>
       
-      {ratingModal && (
-        <RateUserModal 
-            fromId={currentUser.uid}
-            toId={ratingModal.toId}
-            targetName={ratingModal.targetName}
-            userRole="owner"
-            onClose={() => setRatingModal(null)}
-        />
-      )}
+      {ratingModal && <RateUserModal fromId={currentUser.uid} toId={ratingModal.toId} targetName={ratingModal.targetName} userRole="owner" onClose={() => setRatingModal(null)} />}
+      
+      {/* PUBLIC PROFILE MODAL (READ ONLY) */}
+      {viewProfileId && <PublicProfileModal targetId={viewProfileId} targetRole="worker" onClose={() => setViewProfileId(null)} />}
+      
     </div>
   );
 }

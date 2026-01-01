@@ -7,7 +7,8 @@ import { openWhatsAppChat, shareJobOnWhatsApp } from "../utils/whatsappUtils";
 import WorkerProfileForm from "./WorkerProfileForm";
 import RateUserModal from "./RateUserModal";
 import NotificationBell from "./NotificationBell"; 
-import ProfileModal from "./ProfileModal"; // <--- ADDED
+import ProfileModal from "./ProfileModal";
+import PublicProfileModal from "./PublicProfileModal"; // <--- ADDED
 
 export default function WorkerDashboard() {
   const { currentUser, logout } = useAuth();
@@ -20,8 +21,10 @@ export default function WorkerDashboard() {
   const [actionLoading, setActionLoading] = useState(null);
   const [activeTab, setActiveTab] = useState("findJobs"); 
   const [ratingModal, setRatingModal] = useState(null);
-  const [showProfile, setShowProfile] = useState(false); // <--- ADDED
+  const [showProfile, setShowProfile] = useState(false);
+  const [viewProfileId, setViewProfileId] = useState(null); // <--- ADDED
 
+  // ... (Keep filters state and fetchData exactly the same) ...
   const [filters, setFilters] = useState({
     keyword: "", location: "", minSalary: "", accommodation: "All", water: "All"
   });
@@ -29,11 +32,9 @@ export default function WorkerDashboard() {
   const fetchData = async () => {
     if (currentUser) {
       const userProfile = await getWorkerProfile(currentUser.uid);
-      // Merge UID so modal can use it
       if (userProfile) {
         setProfile({ ...userProfile, uid: currentUser.uid });
       }
-      
       if (userProfile && userProfile.profileCompleted) {
         const jobs = await getAllActiveVacancies();
         setVacancies(jobs);
@@ -51,6 +52,7 @@ export default function WorkerDashboard() {
     // eslint-disable-next-line
   }, [currentUser]);
 
+  // ... (Keep handleApply, handleWithdraw, handleRateOwner, handleFilterChange same) ...
   const handleApply = async (job) => {
     if (!window.confirm(`Show interest in "${job.jobTitle}"?`)) return;
     setActionLoading(job.id);
@@ -120,34 +122,21 @@ export default function WorkerDashboard() {
             <h1 className="text-xl font-bold text-blue-600 flex items-center gap-2">🏭 LabourLink</h1>
             <div className="flex items-center gap-4">
               <NotificationBell />
-              
-              {/* PROFILE AVATAR (Click to Open) */}
-              <div 
-                onClick={() => setShowProfile(true)}
-                className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded-lg transition-colors"
-              >
-                  <img 
-                    src={profile.photoURL || "https://ui-avatars.com/api/?name=" + profile.name} 
-                    alt="Profile"
-                    className="w-8 h-8 rounded-full object-cover border border-gray-300"
-                  />
+              <div onClick={() => setShowProfile(true)} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded-lg transition-colors">
+                  <img src={profile.photoURL || "https://ui-avatars.com/api/?name=" + profile.name} alt="Profile" className="w-8 h-8 rounded-full object-cover border border-gray-300"/>
                   <span className="text-gray-600 hidden sm:block font-medium text-sm">{profile.name}</span>
               </div>
-
               <button onClick={logout} className="text-sm text-red-500 border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition">Logout</button>
             </div>
           </div>
         </div>
       </nav>
 
+      {/* ... (Welcome Banner - Keep same) ... */}
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 mb-8 text-white relative overflow-hidden">
+         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 mb-8 text-white relative overflow-hidden">
             <div className="relative z-10 flex items-center gap-4">
-                <img 
-                    src={profile.photoURL || "https://ui-avatars.com/api/?name=" + profile.name + "&background=random"} 
-                    alt="Profile"
-                    className="w-16 h-16 rounded-full border-2 border-white/50 object-cover"
-                />
+                <img src={profile.photoURL || "https://ui-avatars.com/api/?name=" + profile.name + "&background=random"} alt="Profile" className="w-16 h-16 rounded-full border-2 border-white/50 object-cover"/>
                 <div>
                     <h2 className="text-2xl font-bold">Welcome back, {profile.name} 👋</h2>
                     <div className="mt-2 flex flex-wrap gap-4 text-blue-100 text-sm font-medium">
@@ -158,8 +147,6 @@ export default function WorkerDashboard() {
             </div>
         </div>
 
-        {/* ... (Keep existing Tabs and Content exactly same) ... */}
-        
         <div className="flex space-x-4 border-b border-gray-200 mb-6">
           <button onClick={() => setActiveTab("findJobs")} className={`pb-2 px-1 text-sm font-medium transition-colors border-b-2 ${activeTab === "findJobs" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}>
             🔍 Find Jobs
@@ -169,9 +156,9 @@ export default function WorkerDashboard() {
           </button>
         </div>
 
-        {/* ... (Keep Active Tab Content - Find Jobs & My Apps - EXACTLY as before) ... */}
         {activeTab === "findJobs" && (
           <>
+            {/* ... (Filters - Keep same) ... */}
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mb-8">
                 <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-5">
                     <div className="relative"><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Job Role</label><input type="text" name="keyword" placeholder="Search role..." value={filters.keyword} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"/></div>
@@ -202,6 +189,15 @@ export default function WorkerDashboard() {
                                 <span className="bg-green-50 text-green-700 text-xs px-2 py-1 rounded-md font-bold border border-green-100 whitespace-nowrap">₹{job.salary}</span>
                             </div>
                         </div>
+                        
+                        {/* CLICKABLE OWNER NAME */}
+                        <div 
+                            onClick={() => setViewProfileId(job.ownerId)}
+                            className="text-blue-600 hover:text-blue-800 font-medium text-sm mb-4 cursor-pointer inline-flex items-center gap-1"
+                        >
+                            🏭 View Company Profile
+                        </div>
+
                         <p className="text-gray-500 text-sm mb-4">📍 {job.location}</p>
                         <div className="flex flex-wrap gap-2 mb-4">
                           {job.accommodation !== "None" && <span className="text-xs px-2 py-1 rounded border bg-indigo-50 text-indigo-700 border-indigo-100">🏠 {job.accommodation} Room</span>}
@@ -225,6 +221,7 @@ export default function WorkerDashboard() {
           </>
         )}
 
+        {/* ... (Keep My Apps Tab same) ... */}
         {activeTab === "myApps" && (
           <div className="space-y-4">
              {myApplications.length === 0 ? (
@@ -234,10 +231,19 @@ export default function WorkerDashboard() {
                     <div key={app.id} className="bg-white rounded-lg shadow border border-gray-200 p-6 flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex-1">
                             <h3 className="text-lg font-bold text-gray-800">{app.jobTitle}</h3>
-                            <p className="text-gray-600 font-medium">{app.companyName}</p>
+                            
+                            {/* CLICKABLE COMPANY NAME */}
+                            <p 
+                                onClick={() => setViewProfileId(app.ownerId)}
+                                className="text-blue-600 hover:underline font-medium cursor-pointer w-fit"
+                            >
+                                {app.companyName}
+                            </p>
+
                             <p className="text-sm text-gray-500">📍 {app.location} • ₹{app.salary}/mo</p>
                             <p className="text-xs text-gray-400 mt-1">Applied: {new Date(app.appliedAt).toLocaleDateString()}</p>
                         </div>
+                        {/* ... (Keep rest of buttons same) ... */}
                         <div className="flex flex-col items-center min-w-[150px] gap-2">
                             {app.status === "pending" && <span className="bg-yellow-100 text-yellow-800 px-4 py-1.5 rounded-full text-sm font-bold border border-yellow-200">⏳ Pending</span>}
                             {app.status === "rejected" && <span className="bg-red-100 text-red-800 px-4 py-1.5 rounded-full text-sm font-bold border border-red-200">❌ Rejected</span>}
@@ -245,20 +251,8 @@ export default function WorkerDashboard() {
                                 <div className="text-center">
                                     <span className="bg-green-100 text-green-800 px-4 py-1.5 rounded-full text-sm font-bold border border-green-200 block mb-2">✅ Accepted!</span>
                                     <div className="flex gap-2 mb-2 w-full justify-center">
-                                      <button 
-                                          onClick={() => openWhatsAppChat(app.ownerPhone, `Hello, I'm ${profile.name}. I saw your job posting for ${app.jobTitle}.`)}
-                                          className="bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 flex items-center justify-center flex-1"
-                                          title="Chat on WhatsApp"
-                                      >
-                                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
-                                      </button>
-                                      <a 
-                                        href={`tel:${app.ownerPhone}`} 
-                                        className="bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 flex items-center justify-center flex-1"
-                                        title="Call Directly"
-                                      >
-                                        📞
-                                      </a>
+                                      <button onClick={() => openWhatsAppChat(app.ownerPhone, `Hello, I'm ${profile.name}. I saw your job posting for ${app.jobTitle}.`)} className="bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 flex items-center justify-center flex-1" title="Chat on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg></button>
+                                      <a href={`tel:${app.ownerPhone}`} className="bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 flex items-center justify-center flex-1" title="Call Directly">📞</a>
                                     </div>
                                     <div className="text-xs text-gray-500 mb-2">{app.ownerPhone}</div>
                                     <button onClick={() => handleRateOwner(app.ownerId, app.companyName)} className="text-xs text-yellow-600 font-bold hover:underline">⭐ Rate Company</button>
@@ -276,25 +270,12 @@ export default function WorkerDashboard() {
 
       </div>
 
-      {ratingModal && (
-        <RateUserModal 
-            fromId={currentUser.uid}
-            toId={ratingModal.toId}
-            targetName={ratingModal.targetName}
-            userRole="worker"
-            onClose={() => setRatingModal(null)}
-        />
-      )}
+      {ratingModal && <RateUserModal fromId={currentUser.uid} toId={ratingModal.toId} targetName={ratingModal.targetName} userRole="worker" onClose={() => setRatingModal(null)} />}
+      {showProfile && profile && <ProfileModal user={profile} role="worker" onClose={() => setShowProfile(false)} onUpdate={fetchData} />}
+      
+      {/* PUBLIC PROFILE MODAL (READ ONLY) */}
+      {viewProfileId && <PublicProfileModal targetId={viewProfileId} targetRole="owner" onClose={() => setViewProfileId(null)} />}
 
-      {/* PROFILE MODAL */}
-      {showProfile && profile && (
-        <ProfileModal 
-            user={profile} 
-            role="worker" 
-            onClose={() => setShowProfile(false)} 
-            onUpdate={fetchData} 
-        />
-      )}
     </div>
   );
 }
