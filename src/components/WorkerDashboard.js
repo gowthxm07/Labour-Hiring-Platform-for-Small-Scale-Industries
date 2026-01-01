@@ -7,6 +7,7 @@ import { openWhatsAppChat, shareJobOnWhatsApp } from "../utils/whatsappUtils";
 import WorkerProfileForm from "./WorkerProfileForm";
 import RateUserModal from "./RateUserModal";
 import NotificationBell from "./NotificationBell"; 
+import ProfileModal from "./ProfileModal"; // <--- ADDED
 
 export default function WorkerDashboard() {
   const { currentUser, logout } = useAuth();
@@ -19,6 +20,7 @@ export default function WorkerDashboard() {
   const [actionLoading, setActionLoading] = useState(null);
   const [activeTab, setActiveTab] = useState("findJobs"); 
   const [ratingModal, setRatingModal] = useState(null);
+  const [showProfile, setShowProfile] = useState(false); // <--- ADDED
 
   const [filters, setFilters] = useState({
     keyword: "", location: "", minSalary: "", accommodation: "All", water: "All"
@@ -27,7 +29,11 @@ export default function WorkerDashboard() {
   const fetchData = async () => {
     if (currentUser) {
       const userProfile = await getWorkerProfile(currentUser.uid);
-      setProfile(userProfile);
+      // Merge UID so modal can use it
+      if (userProfile) {
+        setProfile({ ...userProfile, uid: currentUser.uid });
+      }
+      
       if (userProfile && userProfile.profileCompleted) {
         const jobs = await getAllActiveVacancies();
         setVacancies(jobs);
@@ -114,7 +120,20 @@ export default function WorkerDashboard() {
             <h1 className="text-xl font-bold text-blue-600 flex items-center gap-2">🏭 LabourLink</h1>
             <div className="flex items-center gap-4">
               <NotificationBell />
-              <span className="text-gray-600 hidden sm:block">Hello, {profile.name}</span>
+              
+              {/* PROFILE AVATAR (Click to Open) */}
+              <div 
+                onClick={() => setShowProfile(true)}
+                className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded-lg transition-colors"
+              >
+                  <img 
+                    src={profile.photoURL || "https://ui-avatars.com/api/?name=" + profile.name} 
+                    alt="Profile"
+                    className="w-8 h-8 rounded-full object-cover border border-gray-300"
+                  />
+                  <span className="text-gray-600 hidden sm:block font-medium text-sm">{profile.name}</span>
+              </div>
+
               <button onClick={logout} className="text-sm text-red-500 border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition">Logout</button>
             </div>
           </div>
@@ -122,14 +141,25 @@ export default function WorkerDashboard() {
       </nav>
 
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 mb-8 text-white">
-            <h2 className="text-2xl font-bold">Welcome back, {profile.name} 👋</h2>
-            <div className="mt-2 flex flex-wrap gap-4 text-blue-100 text-sm font-medium">
-              <span className="flex items-center gap-1">📍 {profile.district}, {profile.state}</span>
-              <span className="flex items-center gap-1">🛠 {profile.skills.join(", ")}</span>
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 mb-8 text-white relative overflow-hidden">
+            <div className="relative z-10 flex items-center gap-4">
+                <img 
+                    src={profile.photoURL || "https://ui-avatars.com/api/?name=" + profile.name + "&background=random"} 
+                    alt="Profile"
+                    className="w-16 h-16 rounded-full border-2 border-white/50 object-cover"
+                />
+                <div>
+                    <h2 className="text-2xl font-bold">Welcome back, {profile.name} 👋</h2>
+                    <div className="mt-2 flex flex-wrap gap-4 text-blue-100 text-sm font-medium">
+                        <span className="flex items-center gap-1">📍 {profile.district}, {profile.state}</span>
+                        <span className="flex items-center gap-1">🛠 {profile.skills.join(", ")}</span>
+                    </div>
+                </div>
             </div>
         </div>
 
+        {/* ... (Keep existing Tabs and Content exactly same) ... */}
+        
         <div className="flex space-x-4 border-b border-gray-200 mb-6">
           <button onClick={() => setActiveTab("findJobs")} className={`pb-2 px-1 text-sm font-medium transition-colors border-b-2 ${activeTab === "findJobs" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}>
             🔍 Find Jobs
@@ -139,6 +169,7 @@ export default function WorkerDashboard() {
           </button>
         </div>
 
+        {/* ... (Keep Active Tab Content - Find Jobs & My Apps - EXACTLY as before) ... */}
         {activeTab === "findJobs" && (
           <>
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mb-8">
@@ -165,7 +196,6 @@ export default function WorkerDashboard() {
                         <div className="flex justify-between items-start mb-2">
                             <h3 className="text-lg font-bold text-gray-800 leading-tight">{job.jobTitle}</h3>
                             <div className="flex items-center gap-2">
-                                {/* WHATSAPP SHARE BUTTON */}
                                 <button onClick={() => shareJobOnWhatsApp(job)} className="text-green-500 hover:text-green-600" title="Share on WhatsApp">
                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
                                 </button>
@@ -214,10 +244,7 @@ export default function WorkerDashboard() {
                             {app.status === "accepted" && (
                                 <div className="text-center">
                                     <span className="bg-green-100 text-green-800 px-4 py-1.5 rounded-full text-sm font-bold border border-green-200 block mb-2">✅ Accepted!</span>
-                                    
-                                    {/* --- UPDATED BUTTONS SECTION --- */}
                                     <div className="flex gap-2 mb-2 w-full justify-center">
-                                      {/* WhatsApp Button */}
                                       <button 
                                           onClick={() => openWhatsAppChat(app.ownerPhone, `Hello, I'm ${profile.name}. I saw your job posting for ${app.jobTitle}.`)}
                                           className="bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 flex items-center justify-center flex-1"
@@ -225,8 +252,6 @@ export default function WorkerDashboard() {
                                       >
                                           <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
                                       </button>
-                                      
-                                      {/* Call Button (Fallback) */}
                                       <a 
                                         href={`tel:${app.ownerPhone}`} 
                                         className="bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 flex items-center justify-center flex-1"
@@ -235,8 +260,6 @@ export default function WorkerDashboard() {
                                         📞
                                       </a>
                                     </div>
-                                    {/* ------------------------------- */}
-
                                     <div className="text-xs text-gray-500 mb-2">{app.ownerPhone}</div>
                                     <button onClick={() => handleRateOwner(app.ownerId, app.companyName)} className="text-xs text-yellow-600 font-bold hover:underline">⭐ Rate Company</button>
                                 </div>
@@ -250,6 +273,7 @@ export default function WorkerDashboard() {
              )}
           </div>
         )}
+
       </div>
 
       {ratingModal && (
@@ -259,6 +283,16 @@ export default function WorkerDashboard() {
             targetName={ratingModal.targetName}
             userRole="worker"
             onClose={() => setRatingModal(null)}
+        />
+      )}
+
+      {/* PROFILE MODAL */}
+      {showProfile && profile && (
+        <ProfileModal 
+            user={profile} 
+            role="worker" 
+            onClose={() => setShowProfile(false)} 
+            onUpdate={fetchData} 
         />
       )}
     </div>
