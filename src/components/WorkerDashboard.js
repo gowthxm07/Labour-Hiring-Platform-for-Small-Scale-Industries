@@ -473,7 +473,7 @@ export default function WorkerDashboard() {
                                     onClick={() => handleWithdraw(app.vacancyId, app.jobTitle)} 
                                     className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 hover:text-red-700 px-4 py-2 rounded-lg transition-colors shadow-sm w-full"
                                 >
-                                    Withdraw App
+                                    Withdraw 
                                 </button>
                             )}
                         </div>
