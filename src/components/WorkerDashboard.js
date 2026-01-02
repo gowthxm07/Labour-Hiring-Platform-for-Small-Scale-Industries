@@ -1,14 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getWorkerProfile } from "../utils/userUtils";
-import { getAllActiveVacancies, submitInterest, getWorkerApplications, withdrawInterest, getWorkerApplicationDetails } from "../utils/vacancyUtils";
+import { 
+  getAllActiveVacancies, 
+  submitInterest, 
+  getWorkerApplications, 
+  withdrawInterest, 
+  getWorkerApplicationDetails,
+  saveJob,       // <--- ADDED
+  unsaveJob,     // <--- ADDED
+  getSavedJobIds, // <--- ADDED
+  getSavedJobsDetails // <--- ADDED
+} from "../utils/vacancyUtils";
 import { hasUserRated } from "../utils/userUtils";
 import { openWhatsAppChat, shareJobOnWhatsApp } from "../utils/whatsappUtils";
 import WorkerProfileForm from "./WorkerProfileForm";
 import RateUserModal from "./RateUserModal";
 import NotificationBell from "./NotificationBell"; 
 import ProfileModal from "./ProfileModal";
-import PublicProfileModal from "./PublicProfileModal"; // <--- ADDED
+import PublicProfileModal from "./PublicProfileModal"; 
 
 export default function WorkerDashboard() {
   const { currentUser, logout } = useAuth();
@@ -17,14 +27,16 @@ export default function WorkerDashboard() {
   
   const [vacancies, setVacancies] = useState([]);
   const [appliedJobIds, setAppliedJobIds] = useState([]); 
+  const [savedJobIds, setSavedJobIds] = useState([]); // <--- NEW STATE
+  const [savedJobsList, setSavedJobsList] = useState([]); // <--- NEW STATE for Tab
+  
   const [myApplications, setMyApplications] = useState([]); 
   const [actionLoading, setActionLoading] = useState(null);
   const [activeTab, setActiveTab] = useState("findJobs"); 
   const [ratingModal, setRatingModal] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
-  const [viewProfileId, setViewProfileId] = useState(null); // <--- ADDED
+  const [viewProfileId, setViewProfileId] = useState(null);
 
-  // ... (Keep filters state and fetchData exactly the same) ...
   const [filters, setFilters] = useState({
     keyword: "", location: "", minSalary: "", accommodation: "All", water: "All"
   });
@@ -38,10 +50,22 @@ export default function WorkerDashboard() {
       if (userProfile && userProfile.profileCompleted) {
         const jobs = await getAllActiveVacancies();
         setVacancies(jobs);
+        
         const appliedIds = await getWorkerApplications(currentUser.uid);
         setAppliedJobIds(appliedIds);
+
         const apps = await getWorkerApplicationDetails(currentUser.uid);
         setMyApplications(apps);
+
+        // --- FETCH SAVED JOBS ---
+        const savedIds = await getSavedJobIds(currentUser.uid);
+        setSavedJobIds(savedIds);
+        
+        // If on saved tab, fetch details
+        if (activeTab === "saved") {
+            const savedDetails = await getSavedJobsDetails(currentUser.uid);
+            setSavedJobsList(savedDetails);
+        }
       }
       setLoading(false);
     }
@@ -50,9 +74,8 @@ export default function WorkerDashboard() {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line
-  }, [currentUser]);
+  }, [currentUser, activeTab]); // Re-fetch when tab changes to "saved"
 
-  // ... (Keep handleApply, handleWithdraw, handleRateOwner, handleFilterChange same) ...
   const handleApply = async (job) => {
     if (!window.confirm(`Show interest in "${job.jobTitle}"?`)) return;
     setActionLoading(job.id);
@@ -81,6 +104,20 @@ export default function WorkerDashboard() {
     setActionLoading(null);
   };
 
+  // --- NEW: TOGGLE SAVE ---
+  const handleToggleSave = async (jobId) => {
+    if (savedJobIds.includes(jobId)) {
+        // Unsave
+        setSavedJobIds(prev => prev.filter(id => id !== jobId)); // Optimistic UI
+        await unsaveJob(currentUser.uid, jobId);
+    } else {
+        // Save
+        setSavedJobIds(prev => [...prev, jobId]); // Optimistic UI
+        await saveJob(currentUser.uid, jobId);
+    }
+    fetchData(); // Sync with DB
+  };
+
   const handleRateOwner = async (ownerId, companyName) => {
     if(!ownerId) return;
     const alreadyRated = await hasUserRated(currentUser.uid, ownerId);
@@ -102,6 +139,69 @@ export default function WorkerDashboard() {
     if (filters.water !== "All" && job.water !== filters.water) return false;
     return true;
   });
+
+  // Helper to render a Job Card (Used in both "Find Jobs" and "Saved" tabs)
+  const renderJobCard = (job) => {
+    const isApplied = appliedJobIds.includes(job.id);
+    const isSaved = savedJobIds.includes(job.id);
+    const isLoading = actionLoading === job.id;
+
+    return (
+        <div key={job.id} className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 flex flex-col relative group">
+            
+            {/* SAVE BUTTON (HEART) */}
+            <button 
+                onClick={(e) => { e.stopPropagation(); handleToggleSave(job.id); }}
+                className="absolute top-4 right-4 z-20 bg-white rounded-full p-2 shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors"
+                title={isSaved ? "Unsave Job" : "Save Job"}
+            >
+                {isSaved ? (
+                    <span className="text-xl text-red-500">❤️</span>
+                ) : (
+                    <span className="text-xl text-gray-300 hover:text-red-400">🤍</span>
+                )}
+            </button>
+
+            <div className="p-6 flex-1">
+            <div className="flex justify-between items-start mb-2 pr-10">
+                <h3 className="text-lg font-bold text-gray-800 leading-tight">{job.jobTitle}</h3>
+            </div>
+            
+            <div 
+                onClick={() => setViewProfileId(job.ownerId)}
+                className="text-blue-600 hover:text-blue-800 font-medium text-sm mb-4 cursor-pointer inline-flex items-center gap-1"
+            >
+                🏭 View Company Profile
+            </div>
+
+            <p className="text-gray-500 text-sm mb-4">📍 {job.location}</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+                <span className="bg-green-50 text-green-700 text-xs px-2 py-1 rounded-md font-bold border border-green-100 whitespace-nowrap">₹{job.salary}</span>
+                {job.accommodation !== "None" && <span className="text-xs px-2 py-1 rounded border bg-indigo-50 text-indigo-700 border-indigo-100">🏠 {job.accommodation}</span>}
+                {job.water !== "None" && <span className="text-xs px-2 py-1 rounded border bg-blue-50 text-blue-700 border-blue-100">💧 {job.water}</span>}
+            </div>
+            
+            <div className="flex items-center gap-2 mb-4">
+                 <button onClick={() => shareJobOnWhatsApp(job)} className="text-green-500 hover:text-green-600 flex items-center gap-1 text-xs font-bold border border-green-200 px-2 py-1 rounded bg-green-50">
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
+                    Share
+                </button>
+            </div>
+
+            <p className="text-gray-600 text-sm line-clamp-3">{job.description}</p>
+            </div>
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-between items-center">
+            <span className="text-xs font-medium text-gray-500">Wanted: {job.workerCount}</span>
+            {isApplied ? (
+                <button onClick={() => handleWithdraw(job.id, job.jobTitle)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-white text-red-600 border border-red-200 hover:bg-red-50">{isLoading ? "..." : "Withdraw"}</button>
+            ) : (
+                <button onClick={() => handleApply(job)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-md">{isLoading ? "..." : "Show Interest"}</button>
+            )}
+            </div>
+        </div>
+    );
+  };
+
 
   if (loading) return <div className="p-10 text-center">Loading...</div>;
 
@@ -132,8 +232,8 @@ export default function WorkerDashboard() {
         </div>
       </nav>
 
-      {/* ... (Welcome Banner - Keep same) ... */}
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+         {/* Welcome Banner */}
          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 mb-8 text-white relative overflow-hidden">
             <div className="relative z-10 flex items-center gap-4">
                 <img src={profile.photoURL || "https://ui-avatars.com/api/?name=" + profile.name + "&background=random"} alt="Profile" className="w-16 h-16 rounded-full border-2 border-white/50 object-cover"/>
@@ -147,19 +247,27 @@ export default function WorkerDashboard() {
             </div>
         </div>
 
-        <div className="flex space-x-4 border-b border-gray-200 mb-6">
+        {/* TABS */}
+        <div className="flex space-x-6 border-b border-gray-200 mb-6">
           <button onClick={() => setActiveTab("findJobs")} className={`pb-2 px-1 text-sm font-medium transition-colors border-b-2 ${activeTab === "findJobs" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}>
             🔍 Find Jobs
           </button>
+          
+          {/* NEW SAVED TAB */}
+          <button onClick={() => setActiveTab("saved")} className={`pb-2 px-1 text-sm font-medium transition-colors border-b-2 ${activeTab === "saved" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}>
+            ❤️ Saved ({savedJobIds.length})
+          </button>
+
           <button onClick={() => setActiveTab("myApps")} className={`pb-2 px-1 text-sm font-medium transition-colors border-b-2 ${activeTab === "myApps" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}>
             📂 My Applications ({myApplications.length})
           </button>
         </div>
 
+        {/* --- FIND JOBS TAB --- */}
         {activeTab === "findJobs" && (
           <>
-            {/* ... (Filters - Keep same) ... */}
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mb-8">
+                {/* Filters */}
                 <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-5">
                     <div className="relative"><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Job Role</label><input type="text" name="keyword" placeholder="Search role..." value={filters.keyword} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"/></div>
                     <div className="relative"><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Location</label><input type="text" name="location" placeholder="City" value={filters.location} onChange={handleFilterChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"/></div>
@@ -174,54 +282,27 @@ export default function WorkerDashboard() {
               {filteredVacancies.length === 0 ? (
                 <div className="col-span-full bg-white p-12 text-center border-2 border-dashed border-gray-300 rounded-xl"><p className="text-gray-500">No jobs found.</p></div>
               ) : (
-                filteredVacancies.map((job) => {
-                  const isApplied = appliedJobIds.includes(job.id);
-                  const isLoading = actionLoading === job.id;
-                  return (
-                    <div key={job.id} className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 flex flex-col">
-                      <div className="p-6 flex-1">
-                        <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-lg font-bold text-gray-800 leading-tight">{job.jobTitle}</h3>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => shareJobOnWhatsApp(job)} className="text-green-500 hover:text-green-600" title="Share on WhatsApp">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.029.575 1.933.889 3.19.891l.005-.001c3.181 0 5.767-2.587 5.767-5.766.001-3.185-2.575-5.771-5.765-5.771zm7.418 5.767c0 4.062-3.326 7.388-7.418 7.388-.005 0-.009 0-.014 0-.004 0-.009 0-.014 0-2.51.002-3.886-.921-4.542-1.396l-3.076.81 1.054-3.834c-1.406-2.126-1.373-5.266 1.418-7.397 2.317-1.859 5.86-1.874 8.196.403 1.942 1.895 1.944 4.025 1.944 4.026z"/></svg>
-                                </button>
-                                <span className="bg-green-50 text-green-700 text-xs px-2 py-1 rounded-md font-bold border border-green-100 whitespace-nowrap">₹{job.salary}</span>
-                            </div>
-                        </div>
-                        
-                        {/* CLICKABLE OWNER NAME */}
-                        <div 
-                            onClick={() => setViewProfileId(job.ownerId)}
-                            className="text-blue-600 hover:text-blue-800 font-medium text-sm mb-4 cursor-pointer inline-flex items-center gap-1"
-                        >
-                            🏭 View Company Profile
-                        </div>
-
-                        <p className="text-gray-500 text-sm mb-4">📍 {job.location}</p>
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {job.accommodation !== "None" && <span className="text-xs px-2 py-1 rounded border bg-indigo-50 text-indigo-700 border-indigo-100">🏠 {job.accommodation} Room</span>}
-                          {job.water !== "None" && <span className="text-xs px-2 py-1 rounded border bg-blue-50 text-blue-700 border-blue-100">💧 {job.water} Water</span>}
-                        </div>
-                        <p className="text-gray-600 text-sm line-clamp-3">{job.description}</p>
-                      </div>
-                      <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-between items-center">
-                        <span className="text-xs font-medium text-gray-500">Wanted: {job.workerCount}</span>
-                        {isApplied ? (
-                          <button onClick={() => handleWithdraw(job.id, job.jobTitle)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-white text-red-600 border border-red-200 hover:bg-red-50">{isLoading ? "..." : "Withdraw"}</button>
-                        ) : (
-                          <button onClick={() => handleApply(job)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-md">{isLoading ? "..." : "Show Interest"}</button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
+                filteredVacancies.map((job) => renderJobCard(job))
               )}
             </div>
           </>
         )}
 
-        {/* ... (Keep My Apps Tab same) ... */}
+        {/* --- NEW SAVED JOBS TAB --- */}
+        {activeTab === "saved" && (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+             {savedJobsList.length === 0 ? (
+                <div className="col-span-full bg-white p-12 text-center border-2 border-dashed border-gray-300 rounded-xl">
+                    <div className="text-4xl mb-4">❤️</div>
+                    <p className="text-gray-500">You haven't saved any jobs yet.</p>
+                </div>
+             ) : (
+                savedJobsList.map((job) => renderJobCard(job))
+             )}
+          </div>
+        )}
+
+        {/* --- MY APPLICATIONS TAB --- */}
         {activeTab === "myApps" && (
           <div className="space-y-4">
              {myApplications.length === 0 ? (
@@ -231,19 +312,10 @@ export default function WorkerDashboard() {
                     <div key={app.id} className="bg-white rounded-lg shadow border border-gray-200 p-6 flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex-1">
                             <h3 className="text-lg font-bold text-gray-800">{app.jobTitle}</h3>
-                            
-                            {/* CLICKABLE COMPANY NAME */}
-                            <p 
-                                onClick={() => setViewProfileId(app.ownerId)}
-                                className="text-blue-600 hover:underline font-medium cursor-pointer w-fit"
-                            >
-                                {app.companyName}
-                            </p>
-
+                            <p onClick={() => setViewProfileId(app.ownerId)} className="text-blue-600 hover:underline font-medium cursor-pointer w-fit">{app.companyName}</p>
                             <p className="text-sm text-gray-500">📍 {app.location} • ₹{app.salary}/mo</p>
                             <p className="text-xs text-gray-400 mt-1">Applied: {new Date(app.appliedAt).toLocaleDateString()}</p>
                         </div>
-                        {/* ... (Keep rest of buttons same) ... */}
                         <div className="flex flex-col items-center min-w-[150px] gap-2">
                             {app.status === "pending" && <span className="bg-yellow-100 text-yellow-800 px-4 py-1.5 rounded-full text-sm font-bold border border-yellow-200">⏳ Pending</span>}
                             {app.status === "rejected" && <span className="bg-red-100 text-red-800 px-4 py-1.5 rounded-full text-sm font-bold border border-red-200">❌ Rejected</span>}
@@ -272,8 +344,6 @@ export default function WorkerDashboard() {
 
       {ratingModal && <RateUserModal fromId={currentUser.uid} toId={ratingModal.toId} targetName={ratingModal.targetName} userRole="worker" onClose={() => setRatingModal(null)} />}
       {showProfile && profile && <ProfileModal user={profile} role="worker" onClose={() => setShowProfile(false)} onUpdate={fetchData} />}
-      
-      {/* PUBLIC PROFILE MODAL (READ ONLY) */}
       {viewProfileId && <PublicProfileModal targetId={viewProfileId} targetRole="owner" onClose={() => setViewProfileId(null)} />}
 
     </div>

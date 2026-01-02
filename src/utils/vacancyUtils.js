@@ -181,3 +181,59 @@ export async function updateVacancyCounts(vacancyId, change) {
     });
   }
 }
+
+// ... existing imports ...
+
+// 13. Save a Job (Add to Watchlist)
+export async function saveJob(workerId, vacancyId) {
+  try {
+    const data = {
+      workerId,
+      vacancyId,
+      savedAt: new Date().toISOString()
+    };
+    await addDoc(collection(db, "savedJobs"), data);
+  } catch (error) {
+    console.error("Error saving job:", error);
+  }
+}
+
+// 14. Unsave a Job (Remove from Watchlist)
+export async function unsaveJob(workerId, vacancyId) {
+  try {
+    const q = query(
+      collection(db, "savedJobs"),
+      where("workerId", "==", workerId),
+      where("vacancyId", "==", vacancyId)
+    );
+    const snapshot = await getDocs(q);
+    const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+  } catch (error) {
+    console.error("Error unsaving job:", error);
+  }
+}
+
+// 15. Get All Saved Job IDs for a Worker
+export async function getSavedJobIds(workerId) {
+  const q = query(collection(db, "savedJobs"), where("workerId", "==", workerId));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => doc.data().vacancyId);
+}
+
+// 16. Get Detailed Saved Jobs (For the "Saved" Tab)
+export async function getSavedJobsDetails(workerId) {
+  const savedIds = await getSavedJobIds(workerId);
+  if (savedIds.length === 0) return [];
+
+  // Fetch actual vacancy details for each saved ID
+  const jobs = [];
+  for (const id of savedIds) {
+    const docRef = doc(db, "vacancies", id);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists() && docSnap.data().status === 'active') {
+      jobs.push({ id: docSnap.id, ...docSnap.data() });
+    }
+  }
+  return jobs;
+}
