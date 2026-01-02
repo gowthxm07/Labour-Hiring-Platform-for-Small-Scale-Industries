@@ -214,3 +214,15 @@ export async function getSavedJobsDetails(workerId) {
   }
   return jobs;
 }
+
+// ... existing imports
+
+// 18. Mark Application as Viewed (Triggered when Owner opens list)
+export async function markApplicationAsViewed(interestId) {
+  const ref = doc(db, "interests", interestId);
+  // Only update if it is currently pending
+  const snap = await getDoc(ref);
+  if (snap.exists() && snap.data().status === "pending") {
+    await updateDoc(ref, { status: "viewed" });
+  }
+}
