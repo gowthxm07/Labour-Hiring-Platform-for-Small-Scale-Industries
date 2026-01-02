@@ -105,3 +105,17 @@ export async function getUserReviews(userId) {
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
+// ... existing imports ...
+
+// 12. Report a User
+export async function reportUser(fromId, toId, reason, reportedName) {
+  await addDoc(collection(db, "reports"), {
+    fromId,
+    toId,
+    reportedName, // Name of the bad actor
+    reason,
+    status: "open", // open, resolved, ignored
+    createdAt: new Date().toISOString()
+  });
+}
