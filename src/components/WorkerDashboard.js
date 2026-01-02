@@ -19,7 +19,7 @@ import RateUserModal from "./RateUserModal";
 import NotificationBell from "./NotificationBell"; 
 import ProfileModal from "./ProfileModal";
 import PublicProfileModal from "./PublicProfileModal"; 
-import StatusTimeline from "./StatusTimeline"; // Ensure you created this component
+import StatusTimeline from "./StatusTimeline"; 
 
 export default function WorkerDashboard() {
   const { currentUser, logout } = useAuth();
@@ -121,7 +121,6 @@ export default function WorkerDashboard() {
         setSavedJobIds(prev => [...prev, jobId]); 
         await saveJob(currentUser.uid, jobId);
     }
-    // No need to fetch all data, just update the saved list if we are on that tab
     if (activeTab === 'saved') fetchData();
   };
 
@@ -150,15 +149,30 @@ export default function WorkerDashboard() {
   });
 
   const filteredApplications = myApplications.filter(app => {
-      if (appFilter === "All") return true;
-      
-      // FIX: Treat "viewed" as "pending" for the filter
-      if (appFilter === "Pending") {
-          return app.status === "pending" || app.status === "viewed";
-      }
+    if (appFilter === "All") return true;
+    if (appFilter === "Pending") {
+        return app.status === "pending" || app.status === "viewed";
+    }
+    return app.status === appFilter.toLowerCase();
+  });
 
-      return app.status === appFilter.toLowerCase();
+  // --- SKILL MATCH LOGIC ---
+  const calculateMatch = (workerSkills, jobSkills) => {
+    if (!jobSkills || jobSkills.length === 0) return null; // No skills required by owner
+    if (!workerSkills || workerSkills.length === 0) return 0;
+
+    // Standardize to lowercase for comparison
+    const workerSet = new Set(workerSkills.map(s => s.toLowerCase()));
+    const jobSet = new Set(jobSkills.map(s => s.toLowerCase()));
+
+    // Find intersection
+    let matchCount = 0;
+    jobSet.forEach(skill => {
+        if (workerSet.has(skill)) matchCount++;
     });
+
+    return Math.round((matchCount / jobSet.size) * 100);
+  };
 
   // --- RENDER HELPERS ---
 
@@ -166,6 +180,17 @@ export default function WorkerDashboard() {
     const isApplied = appliedJobIds.includes(job.id);
     const isSaved = savedJobIds.includes(job.id);
     const isLoading = actionLoading === job.id;
+
+    // CALCULATE MATCH SCORE
+    const matchScore = calculateMatch(profile.skills, job.requiredSkills);
+    
+    // Minimalistic Match Badge Styles
+    let matchStyle = "text-gray-500 bg-gray-100 border-gray-200";
+    if (matchScore !== null) {
+        if (matchScore >= 80) matchStyle = "text-green-700 bg-green-50 border-green-200";
+        else if (matchScore >= 50) matchStyle = "text-yellow-700 bg-yellow-50 border-yellow-200";
+        else matchStyle = "text-red-700 bg-red-50 border-red-200";
+    }
 
     return (
         <div key={job.id} className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 flex flex-col relative group">
@@ -186,7 +211,7 @@ export default function WorkerDashboard() {
                 
                 <div 
                     onClick={() => setViewProfileId(job.ownerId)}
-                    className="text-blue-600 hover:text-blue-800 font-medium text-sm mb-4 cursor-pointer inline-flex items-center gap-1"
+                    className="text-blue-600 hover:text-blue-800 font-medium text-sm mb-4 cursor-pointer inline-flex items-center gap-1 block"
                 >
                     🏭 View Company Profile
                 </div>
@@ -197,6 +222,23 @@ export default function WorkerDashboard() {
                     {job.accommodation !== "None" && <span className="text-xs px-2 py-1 rounded border bg-indigo-50 text-indigo-700 border-indigo-100">🏠 {job.accommodation}</span>}
                     {job.water !== "None" && <span className="text-xs px-2 py-1 rounded border bg-blue-50 text-blue-700 border-blue-100">💧 {job.water}</span>}
                 </div>
+
+                {/* SHOW REQUIRED SKILLS TAGS */}
+                {job.requiredSkills && job.requiredSkills.length > 0 && (
+                    <div className="mb-4">
+                        <div className="flex flex-wrap gap-1">
+                            {job.requiredSkills.slice(0, 4).map((skill, i) => {
+                                const hasSkill = profile.skills?.some(s => s.toLowerCase() === skill.toLowerCase());
+                                return (
+                                    <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded border ${hasSkill ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-50 text-gray-500 border-gray-200"}`}>
+                                        {skill} {hasSkill && "✓"}
+                                    </span>
+                                );
+                            })}
+                            {job.requiredSkills.length > 4 && <span className="text-[10px] text-gray-400">+{job.requiredSkills.length - 4} more</span>}
+                        </div>
+                    </div>
+                )}
                 
                 <div className="flex items-center gap-2 mb-4">
                     <button onClick={() => shareJobOnWhatsApp(job)} className="text-green-500 hover:text-green-600 flex items-center gap-1 text-xs font-bold border border-green-200 px-2 py-1 rounded bg-green-50">
@@ -209,11 +251,21 @@ export default function WorkerDashboard() {
             
             <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-between items-center">
                 <span className="text-xs font-medium text-gray-500">Wanted: {job.workerCount}</span>
-                {isApplied ? (
-                    <button onClick={() => handleWithdraw(job.id, job.jobTitle)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-white text-red-600 border border-red-200 hover:bg-red-50">{isLoading ? "..." : "Withdraw"}</button>
-                ) : (
-                    <button onClick={() => handleApply(job)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-md">{isLoading ? "..." : "Show Interest"}</button>
-                )}
+                
+                <div className="flex items-center gap-3">
+                    {/* --- MATCH PERCENTAGE BADGE --- */}
+                    {matchScore !== null && (
+                        <span className={`text-xs font-bold px-2 py-1 rounded border ${matchStyle}`}>
+                            {matchScore}% Match
+                        </span>
+                    )}
+
+                    {isApplied ? (
+                        <button onClick={() => handleWithdraw(job.id, job.jobTitle)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-white text-red-600 border border-red-200 hover:bg-red-50">{isLoading ? "..." : "Withdraw"}</button>
+                    ) : (
+                        <button onClick={() => handleApply(job)} disabled={isLoading} className="text-sm px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-md">{isLoading ? "..." : "Show Interest"}</button>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -261,7 +313,7 @@ export default function WorkerDashboard() {
 
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         
-        {/* WELCOME BANNER */}
+        {/* WELCOME BANNER WITH SKILL PILLS */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 mb-8 text-white relative overflow-hidden">
             <div className="relative z-10 flex items-center gap-4">
                 <img 
@@ -271,9 +323,18 @@ export default function WorkerDashboard() {
                 />
                 <div>
                     <h2 className="text-2xl font-bold">Welcome back, {profile.name} 👋</h2>
-                    <div className="mt-2 flex flex-wrap gap-4 text-blue-100 text-sm font-medium">
-                        <span className="flex items-center gap-1">📍 {profile.district}, {profile.state}</span>
-                        <span className="flex items-center gap-1">🛠 {profile.skills.join(", ")}</span>
+                    <div className="mt-2">
+                        <p className="flex items-center gap-1 text-blue-100 text-sm font-medium mb-2">
+                            📍 {profile.district}, {profile.state}
+                        </p>
+                        {/* --- SKILL PILLS --- */}
+                        <div className="flex flex-wrap gap-2">
+                            {profile.skills && profile.skills.map((skill, idx) => (
+                                <span key={idx} className="bg-white/20 border border-white/30 text-white text-xs px-2 py-1 rounded-full">
+                                    🛠 {skill}
+                                </span>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
